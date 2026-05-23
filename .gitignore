@@ -10,3 +10,4 @@ build/
 htmlcov/
 /snapshot_data/
 /cache/
+tests/fixtures/mini-vg13/index/
