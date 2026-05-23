@@ -3,6 +3,8 @@ import logging
 from mcp.server.fastmcp import FastMCP
 
 from vgstation13_mcp.tools.meta import snapshot_info as _snapshot_info
+from vgstation13_mcp.tools.source import list_dir as _list_dir
+from vgstation13_mcp.tools.source import read_file as _read_file
 
 log = logging.getLogger("vgstation13_mcp")
 mcp = FastMCP("vgstation13")
@@ -12,6 +14,18 @@ mcp = FastMCP("vgstation13")
 def snapshot_info() -> dict:
     """Return metadata about the currently-served vg13 snapshot."""
     return _snapshot_info()
+
+
+@mcp.tool()
+def list_dir(path: str) -> list[dict]:
+    """List directory entries in the vg13 snapshot."""
+    return _list_dir(path)
+
+
+@mcp.tool()
+def read_file(path: str, range: list[int] | None = None) -> str:
+    """Read a vg13 source file. Optional 1-indexed [start, end] line range."""
+    return _read_file(path, range=range)
 
 
 def main() -> None:
