@@ -2,8 +2,11 @@ import logging
 
 from mcp.server.fastmcp import FastMCP
 
+from vgstation13_mcp.tools.dm_index import find_proc as _find_proc
+from vgstation13_mcp.tools.dm_index import find_var as _find_var
 from vgstation13_mcp.tools.dm_index import get_type as _get_type
 from vgstation13_mcp.tools.dm_index import list_subtypes as _list_subtypes
+from vgstation13_mcp.tools.dm_index import path_lookup as _path_lookup
 from vgstation13_mcp.tools.meta import snapshot_info as _snapshot_info
 from vgstation13_mcp.tools.source import list_dir as _list_dir
 from vgstation13_mcp.tools.source import read_file as _read_file
@@ -47,6 +50,24 @@ def get_type(path: str) -> dict:
 def list_subtypes(path: str, transitive: bool = False) -> list[str]:
     """List direct subtypes of `path`; set transitive=true to walk the whole subtree."""
     return _list_subtypes(path, transitive=transitive)
+
+
+@mcp.tool()
+def find_proc(name: str, scope: str | None = None) -> list[dict]:
+    """Find all procs with the given name. Optional `scope` narrows to a subtree."""
+    return _find_proc(name, scope=scope)
+
+
+@mcp.tool()
+def find_var(name: str, scope: str | None = None) -> list[dict]:
+    """Find all var declarations with the given name. Optional `scope` narrows to a subtree."""
+    return _find_var(name, scope=scope)
+
+
+@mcp.tool()
+def path_lookup(query: str, limit: int = 50) -> list[dict]:
+    """Fuzzy-match against the full type path index. Returns up to 50 ranked candidates."""
+    return _path_lookup(query, limit=limit)
 
 
 def main() -> None:
