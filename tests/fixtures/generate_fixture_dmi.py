@@ -4,6 +4,7 @@ Run once to (re)generate the DMI fixture. The output file size may vary slightly
 across Pillow versions due to PNG encoder differences; what matters is that the
 zTXt 'Description' chunk is present and CRC-valid, which downstream tests rely on.
 """
+
 import zlib
 from pathlib import Path
 
@@ -27,10 +28,10 @@ desc = (
     "version = 4.0\n"
     "\twidth = 32\n"
     "\theight = 32\n"
-    "state = \"idle\"\n"
+    'state = "idle"\n'
     "\tdirs = 1\n"
     "\tframes = 1\n"
-    "state = \"active\"\n"
+    'state = "active"\n'
     "\tdirs = 1\n"
     "\tframes = 1\n"
     "# END DMI\n"
@@ -48,7 +49,7 @@ compressed = zlib.compress(desc.encode("latin-1"))
 chunk_data = keyword + compressed
 length = len(chunk_data).to_bytes(4, "big")
 chunk_type = b"zTXt"
-crc = (zlib.crc32(chunk_type + chunk_data) & 0xffffffff).to_bytes(4, "big")
+crc = (zlib.crc32(chunk_type + chunk_data) & 0xFFFFFFFF).to_bytes(4, "big")
 ztxt = length + chunk_type + chunk_data + crc
 
 # Insert before IEND.

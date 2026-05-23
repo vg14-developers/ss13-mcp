@@ -13,7 +13,11 @@ def snapshot_info() -> dict:
     else:
         # Fall back to the SHA file's mtime, then now.
         mtime_src = snap / "SHA"
-        ts = mtime_src.stat().st_mtime if mtime_src.exists() else datetime.now(timezone.utc).timestamp()
+        ts = (
+            mtime_src.stat().st_mtime
+            if mtime_src.exists()
+            else datetime.now(timezone.utc).timestamp()
+        )
         bumped_at = datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
 
     wiki_dir = snap / "wiki"
