@@ -1,5 +1,15 @@
 # syntax=docker/dockerfile:1.7
 
+# --- dmm-builder: compile dmm-tools from source (no ARM prebuilt exists upstream) ---
+FROM rust:1-slim-bookworm AS dmm-builder
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
+RUN git clone --depth 1 --branch suite-1.10 https://github.com/SpaceManiac/SpacemanDMM /src \
+    && cd /src \
+    && cargo build --release --bin dmm-tools \
+    && strip /src/target/release/dmm-tools
+
+
 FROM python:3.12-slim AS builder
 ARG VG13_SHA
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -7,8 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN pip install --no-cache-dir uv==0.5.4
 
-RUN curl -sSfL https://github.com/SpaceManiac/SpacemanDMM/releases/download/suite-1.10/dmm-tools-x86_64-unknown-linux-gnu \
-      -o /usr/local/bin/dmm-tools && chmod +x /usr/local/bin/dmm-tools
+COPY --from=dmm-builder /src/target/release/dmm-tools /usr/local/bin/dmm-tools
 
 WORKDIR /build
 COPY pyproject.toml uv.lock ./
