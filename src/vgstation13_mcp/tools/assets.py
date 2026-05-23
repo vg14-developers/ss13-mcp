@@ -1,9 +1,10 @@
 import base64
+import json
 import mimetypes
 from pathlib import Path
 
-from vgstation13_mcp import dmi, rsi
-from vgstation13_mcp.snapshot import cache_dir, snapshot_dir
+from vgstation13_mcp import cache, dmi, rsi
+from vgstation13_mcp.snapshot import snapshot_dir
 
 
 def _resolve(path: str) -> Path:
@@ -40,14 +41,22 @@ def convert_dmi(dmi_path: str, state: str | None = None) -> dict:
     target = _resolve(dmi_path)
     if not target.exists():
         raise FileNotFoundError(dmi_path)
-    parsed = dmi.load_dmi(target)
-    rel = Path(dmi_path).with_suffix("")
-    state_part = state or "all"
-    out_dir = cache_dir() / "conversions" / str(rel) / state_part
-    out_dir.mkdir(parents=True, exist_ok=True)
-    rsi.write_rsi(parsed, out_dir, state_filter=state)
+
+    slot = cache.slot(dmi_path, state)
+    hit = cache.is_hit(dmi_path, state)
+
+    if not hit:
+        parsed = dmi.load_dmi(target)
+        slot.mkdir(parents=True, exist_ok=True)
+        rsi.write_rsi(parsed, slot, state_filter=state)
+        cache.evict_if_needed()
+
+    cache.touch(dmi_path, state)
+
+    meta = json.loads((slot / "meta.json").read_text())
     return {
-        "rsi_path": str(out_dir),
-        "states": [s.name for s in parsed.states if not state or s.name == state],
+        "rsi_path": str(slot),
+        "states": [s["name"] for s in meta["states"]],
         "url": None,
+        "cache_hit": hit,
     }
