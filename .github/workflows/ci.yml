@@ -1,0 +1,37 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.5.4"
+
+      - name: setup python
+        run: uv python install 3.12
+
+      - name: sync dependencies
+        run: uv sync --extra dev
+
+      - name: lint
+        run: uv run ruff check src tests
+
+      - name: format check
+        run: uv run ruff format --check src tests
+
+      - name: unit tests
+        run: uv run pytest tests/ -v --cov=src/vgstation13_mcp --cov-report=term-missing
+        env:
+          VG_SNAPSHOT_DIR: tests/fixtures/mini-vg13
