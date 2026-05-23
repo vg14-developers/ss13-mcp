@@ -14,6 +14,8 @@ from vgstation13_mcp.tools.meta import snapshot_info as _snapshot_info
 from vgstation13_mcp.tools.source import list_dir as _list_dir
 from vgstation13_mcp.tools.source import read_file as _read_file
 from vgstation13_mcp.tools.source import search_files as _search_files
+from vgstation13_mcp.tools.wiki import wiki_read as _wiki_read
+from vgstation13_mcp.tools.wiki import wiki_search as _wiki_search
 
 log = logging.getLogger("vgstation13_mcp")
 mcp = FastMCP("vgstation13")
@@ -89,6 +91,18 @@ def list_dmi_states(dmi_path: str) -> list[dict]:
 def convert_dmi(dmi_path: str, state: str | None = None) -> dict:
     """Convert a DMI to a Robust SS14 RSI. Returns local path + URL."""
     return _convert_dmi(dmi_path, state=state)
+
+
+@mcp.tool()
+def wiki_search(query: str, limit: int = 25) -> list[dict]:
+    """Full-text search across the snapshotted ss13.moe wiki. Returns page titles + excerpts."""
+    return _wiki_search(query, limit=limit)
+
+
+@mcp.tool()
+def wiki_read(page: str) -> str:
+    """Return markdown for a single snapshotted wiki page."""
+    return _wiki_read(page)
 
 
 def main() -> None:
