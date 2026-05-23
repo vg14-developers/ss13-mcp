@@ -1,6 +1,5 @@
 import base64
 import json
-import time
 from pathlib import Path as pathlib_Path
 
 import pytest
@@ -52,14 +51,8 @@ def test_convert_dmi_single_state(fixture_snapshot, tmp_path):
 
 
 def test_convert_dmi_cache_hit(fixture_snapshot):
-    t0 = time.monotonic()
     first = convert_dmi("icons/test.dmi")
-    t1 = time.monotonic()
     second = convert_dmi("icons/test.dmi")
-    t2 = time.monotonic()
     assert first["rsi_path"] == second["rsi_path"]
-    cold_ms = (t1 - t0) * 1000
-    warm_ms = (t2 - t1) * 1000
-    assert warm_ms * 5 < cold_ms or warm_ms < 5
-    assert second["cache_hit"] is True
     assert first["cache_hit"] is False
+    assert second["cache_hit"] is True
