@@ -2,6 +2,8 @@ import logging
 
 from mcp.server.fastmcp import FastMCP
 
+from vgstation13_mcp.tools.assets import list_dmi_states as _list_dmi_states
+from vgstation13_mcp.tools.assets import read_asset as _read_asset
 from vgstation13_mcp.tools.dm_index import find_proc as _find_proc
 from vgstation13_mcp.tools.dm_index import find_var as _find_var
 from vgstation13_mcp.tools.dm_index import get_type as _get_type
@@ -68,6 +70,18 @@ def find_var(name: str, scope: str | None = None) -> list[dict]:
 def path_lookup(query: str, limit: int = 50) -> list[dict]:
     """Fuzzy-match against the full type path index. Returns up to 50 ranked candidates."""
     return _path_lookup(query, limit=limit)
+
+
+@mcp.tool()
+def read_asset(path: str) -> dict:
+    """Read a non-DMI asset (OGG/MID/PNG/etc). Returns size, mime, base64 bytes."""
+    return _read_asset(path)
+
+
+@mcp.tool()
+def list_dmi_states(dmi_path: str) -> list[dict]:
+    """List the states in a DMI sprite sheet without converting it."""
+    return _list_dmi_states(dmi_path)
 
 
 def main() -> None:
