@@ -11,3 +11,4 @@ htmlcov/
 /snapshot_data/
 /cache/
 tests/fixtures/mini-vg13/index/
+tests/fixtures/mini-vg13/wiki/

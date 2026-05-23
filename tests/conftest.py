@@ -68,6 +68,18 @@ def _bake_fixture_index() -> None:
 _bake_fixture_index()
 
 
+def _bake_fixture_wiki() -> None:
+    wiki_dir = FIXTURE_DIR / "wiki"
+    if wiki_dir.exists():
+        return
+    from pipeline.crawl_wiki import html_to_markdown_bundle
+
+    html_to_markdown_bundle(FIXTURE_DIR / "wiki_html", wiki_dir)
+
+
+_bake_fixture_wiki()
+
+
 @pytest.fixture
 def fixture_snapshot(monkeypatch, tmp_path):
     monkeypatch.setenv("VG_SNAPSHOT_DIR", str(FIXTURE_DIR))
