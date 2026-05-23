@@ -1,6 +1,6 @@
 import os
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -60,5 +60,22 @@ def build_app() -> FastAPI:
         user: dict = Depends(require_auth),  # noqa: B008
     ):
         await sse.handle_post_message(request.scope, request.receive, request._send)
+
+    from vgstation13_mcp.ratelimit import TokenBucket
+
+    read_bucket = TokenBucket(capacity=600, refill_per_second=10.0)
+
+    @app.middleware("http")
+    async def rate_limit(request: Request, call_next):
+        user_key = request.headers.get(
+            "Authorization", request.client.host if request.client else "anonymous"
+        )
+        if not read_bucket.take(user_key):
+            raise HTTPException(
+                status_code=429,
+                detail="rate limit exceeded",
+                headers={"Retry-After": "60"},
+            )
+        return await call_next(request)
 
     return app

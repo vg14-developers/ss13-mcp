@@ -5,6 +5,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.types import Resource
 from pydantic import AnyUrl
 
+from vgstation13_mcp.ratelimit import TokenBucket
 from vgstation13_mcp.resources import read_resource as _read_resource
 from vgstation13_mcp.tools.assets import convert_dmi as _convert_dmi
 from vgstation13_mcp.tools.assets import list_dmi_states as _list_dmi_states
@@ -24,6 +25,8 @@ from vgstation13_mcp.tools.wiki import wiki_search as _wiki_search
 
 log = logging.getLogger("vgstation13_mcp")
 mcp = FastMCP("vgstation13")
+
+_convert_bucket = TokenBucket(capacity=30, refill_per_second=0.5)
 
 
 @mcp.tool()
@@ -94,7 +97,9 @@ def list_dmi_states(dmi_path: str) -> list[dict]:
 
 @mcp.tool()
 def convert_dmi(dmi_path: str, state: str | None = None) -> dict:
-    """Convert a DMI to a Robust SS14 RSI. Returns local path + URL."""
+    """Convert a DMI to a Robust SS14 RSI. Returns local path + URL. Rate-limited to 30/min."""
+    if not _convert_bucket.take("global"):
+        raise RuntimeError("convert_dmi rate limit exceeded: 30/min server-wide")
     return _convert_dmi(dmi_path, state=state)
 
 
