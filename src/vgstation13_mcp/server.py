@@ -1,4 +1,5 @@
 import logging
+import os
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import Resource
@@ -136,9 +137,21 @@ async def read_resource(uri: AnyUrl) -> str:
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
-    # Default transport is stdio; the hosted deployment will swap this for SSE
-    # via uvicorn (see deploy/ in a later task).
-    mcp.run()
+    transport = os.environ.get("VG_TRANSPORT", "stdio")
+    if transport == "stdio":
+        mcp.run()
+    elif transport == "http":
+        import uvicorn
+
+        from vgstation13_mcp.app import build_app
+
+        uvicorn.run(
+            build_app(),
+            host="0.0.0.0",
+            port=int(os.environ.get("PORT", "8080")),
+        )
+    else:
+        raise ValueError(f"unknown VG_TRANSPORT: {transport}")
 
 
 if __name__ == "__main__":

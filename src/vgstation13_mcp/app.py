@@ -35,8 +35,30 @@ def build_app() -> FastAPI:
         request.session["user"] = {"login": user["login"], "id": user["id"]}
         return RedirectResponse("/")
 
+    from mcp.server.sse import SseServerTransport
+
+    from vgstation13_mcp.server import mcp as mcp_server
+
+    sse = SseServerTransport("/messages/")
+
     @app.get("/sse")
-    async def sse_placeholder(user: dict = Depends(require_auth)):  # noqa: B008
-        return {"placeholder": "sse"}
+    async def handle_sse(
+        request: Request,
+        user: dict = Depends(require_auth),  # noqa: B008
+    ):
+        async with sse.connect_sse(request.scope, request.receive, request._send) as (read, write):
+            await mcp_server._mcp_server.run(
+                read,
+                write,
+                mcp_server._mcp_server.create_initialization_options(),
+            )
+
+    @app.post("/messages/{session_id}")
+    async def handle_messages(
+        session_id: str,
+        request: Request,
+        user: dict = Depends(require_auth),  # noqa: B008
+    ):
+        await sse.handle_post_message(request.scope, request.receive, request._send)
 
     return app
