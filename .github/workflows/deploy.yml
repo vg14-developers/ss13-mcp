@@ -1,0 +1,47 @@
+name: deploy
+
+on:
+  # Snapshot bumps: wait for bump.yml to finish pushing the new image first.
+  workflow_run:
+    workflows: ["bump"]
+    types: [completed]
+    branches: [main]
+  # Deploy-config-only changes: skip the bump dependency and roll out directly.
+  push:
+    branches: [main]
+    paths:
+      - deploy/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # For workflow_run triggers, only proceed if bump succeeded.
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: copy deploy files to VM
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ${{ secrets.ORACLE_USER }}
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          source: "deploy/docker-compose.yml,deploy/Caddyfile"
+          target: "/opt/vgstation13-mcp/"
+          strip_components: 1
+
+      - name: pull and restart on VM
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ${{ secrets.ORACLE_USER }}
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          script: |
+            cd /opt/vgstation13-mcp
+            docker compose pull
+            docker compose up -d
+            docker image prune -f
