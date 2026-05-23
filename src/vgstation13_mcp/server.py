@@ -1,7 +1,10 @@
 import logging
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import Resource
+from pydantic import AnyUrl
 
+from vgstation13_mcp.resources import read_resource as _read_resource
 from vgstation13_mcp.tools.assets import convert_dmi as _convert_dmi
 from vgstation13_mcp.tools.assets import list_dmi_states as _list_dmi_states
 from vgstation13_mcp.tools.assets import read_asset as _read_asset
@@ -14,6 +17,7 @@ from vgstation13_mcp.tools.meta import snapshot_info as _snapshot_info
 from vgstation13_mcp.tools.source import list_dir as _list_dir
 from vgstation13_mcp.tools.source import read_file as _read_file
 from vgstation13_mcp.tools.source import search_files as _search_files
+from vgstation13_mcp.tools.wiki import _index as _wiki_index_loader
 from vgstation13_mcp.tools.wiki import wiki_read as _wiki_read
 from vgstation13_mcp.tools.wiki import wiki_search as _wiki_search
 
@@ -103,6 +107,31 @@ def wiki_search(query: str, limit: int = 25) -> list[dict]:
 def wiki_read(page: str) -> str:
     """Return markdown for a single snapshotted wiki page."""
     return _wiki_read(page)
+
+
+# Resource handlers live on the low-level Server. FastMCP 1.2.0 doesn't expose
+# `@mcp.list_resources()` / `@mcp.read_resource()` decorators directly, so we
+# register on `mcp._mcp_server` and overwrite FastMCP's default handlers.
+@mcp._mcp_server.list_resources()
+async def list_resources() -> list[Resource]:
+    """Advertise snapshotted wiki pages as vg13:// resources."""
+    out: list[Resource] = []
+    for entry in _wiki_index_loader():
+        out.append(
+            Resource(
+                uri=AnyUrl(f"vg13://wiki/{entry['page']}"),
+                name=entry["title"],
+                mimeType="text/markdown",
+            )
+        )
+    return out
+
+
+@mcp._mcp_server.read_resource()
+async def read_resource(uri: AnyUrl) -> str:
+    """Resolve a vg13://source/... or vg13://wiki/... URI to its content."""
+    content, _mime = _read_resource(str(uri))
+    return content
 
 
 def main() -> None:
