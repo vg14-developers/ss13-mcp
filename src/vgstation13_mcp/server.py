@@ -2,6 +2,8 @@ import logging
 
 from mcp.server.fastmcp import FastMCP
 
+from vgstation13_mcp.tools.dm_index import get_type as _get_type
+from vgstation13_mcp.tools.dm_index import list_subtypes as _list_subtypes
 from vgstation13_mcp.tools.meta import snapshot_info as _snapshot_info
 from vgstation13_mcp.tools.source import list_dir as _list_dir
 from vgstation13_mcp.tools.source import read_file as _read_file
@@ -33,6 +35,18 @@ def read_file(path: str, range: list[int] | None = None) -> str:
 def search_files(pattern: str, glob: str | None = None, limit: int = 200) -> list[dict]:
     """Ripgrep across vg13 source. Optional glob narrows scope."""
     return _search_files(pattern, glob=glob, limit=limit)
+
+
+@mcp.tool()
+def get_type(path: str) -> dict:
+    """Return parent, vars, procs, file:line for a BYOND type path."""
+    return _get_type(path)
+
+
+@mcp.tool()
+def list_subtypes(path: str, transitive: bool = False) -> list[str]:
+    """List direct subtypes of `path`; set transitive=true to walk the whole subtree."""
+    return _list_subtypes(path, transitive=transitive)
 
 
 def main() -> None:
