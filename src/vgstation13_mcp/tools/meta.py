@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 
 from vgstation13_mcp.snapshot import read_snapshot_sha, snapshot_dir
@@ -17,7 +18,7 @@ def snapshot_info() -> dict:
 
     wiki_dir = snap / "wiki"
     wiki_pages = len(list(wiki_dir.glob("*.md"))) if wiki_dir.exists() else 0
-    # Match the fixture html dir for the early test.
+    # Fallback: pre-bump deployments only have wiki_html/*.html, not wiki/*.md.
     if wiki_pages == 0:
         html_dir = snap / "wiki_html"
         wiki_pages = len(list(html_dir.glob("*.html"))) if html_dir.exists() else 0
@@ -25,7 +26,6 @@ def snapshot_info() -> dict:
     types_idx = snap / "index" / "types.json"
     dm_types_count = 0
     if types_idx.exists():
-        import json
         dm_types_count = len(json.loads(types_idx.read_text()))
 
     return {

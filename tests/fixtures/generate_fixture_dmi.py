@@ -6,6 +6,7 @@ zTXt 'Description' chunk is present and CRC-valid, which downstream tests rely o
 """
 import zlib
 from pathlib import Path
+
 from PIL import Image
 
 OUT = Path(__file__).parent / "mini-vg13" / "icons" / "test.dmi"

@@ -1,15 +1,12 @@
 import os
-from functools import cache
 from pathlib import Path
 
 
-@cache
 def snapshot_dir() -> Path:
     """Root directory of the baked vg13 snapshot."""
     return Path(os.environ.get("VG_SNAPSHOT_DIR", "/snapshot"))
 
 
-@cache
 def cache_dir() -> Path:
     """Disk cache root for DMI conversions."""
     d = Path(os.environ.get("VG_CACHE_DIR", "/var/cache/vgstation13-mcp"))
