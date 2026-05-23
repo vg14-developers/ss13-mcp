@@ -1,0 +1,63 @@
+name: bump-smoke
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: resolve current vg13 master SHA
+        id: resolve
+        run: |
+          SHA=$(git ls-remote https://github.com/vgstation-coders/vgstation13.git refs/heads/Bleeding-Edge | awk '{print $1}')
+          if [[ -z "$SHA" ]]; then
+            SHA=$(git ls-remote https://github.com/vgstation-coders/vgstation13.git HEAD | awk '{print $1}')
+          fi
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: build snapshot image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          push: false
+          load: true
+          tags: vgstation13-mcp:smoke
+          build-args: |
+            VG13_SHA=${{ steps.resolve.outputs.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: file P1 issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = "${{ steps.resolve.outputs.sha }}";
+            const body = [
+              "Weekly snapshot bump smoke test failed.",
+              "",
+              "**vg13 SHA tried:** `" + sha + "`",
+              "**Run:** " + context.payload.repository.html_url + "/actions/runs/" + context.runId,
+              "",
+              "Likely causes: dmm-tools couldn't parse new DM syntax, ss13.moe markup changed, or our pipeline regressed.",
+            ].join("\n");
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: "[P1] bump-smoke failing as of " + new Date().toISOString().slice(0,10),
+              body,
+              labels: ["P1", "ci-broken"],
+            });
