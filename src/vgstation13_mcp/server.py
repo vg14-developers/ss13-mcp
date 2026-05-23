@@ -5,6 +5,7 @@ from mcp.server.fastmcp import FastMCP
 from vgstation13_mcp.tools.meta import snapshot_info as _snapshot_info
 from vgstation13_mcp.tools.source import list_dir as _list_dir
 from vgstation13_mcp.tools.source import read_file as _read_file
+from vgstation13_mcp.tools.source import search_files as _search_files
 
 log = logging.getLogger("vgstation13_mcp")
 mcp = FastMCP("vgstation13")
@@ -26,6 +27,12 @@ def list_dir(path: str) -> list[dict]:
 def read_file(path: str, range: list[int] | None = None) -> str:
     """Read a vg13 source file. Optional 1-indexed [start, end] line range."""
     return _read_file(path, range=range)
+
+
+@mcp.tool()
+def search_files(pattern: str, glob: str | None = None, limit: int = 200) -> list[dict]:
+    """Ripgrep across vg13 source. Optional glob narrows scope."""
+    return _search_files(pattern, glob=glob, limit=limit)
 
 
 def main() -> None:

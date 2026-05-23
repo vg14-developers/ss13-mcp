@@ -31,6 +31,9 @@ jobs:
       - name: format check
         run: uv run ruff format --check src tests
 
+      - name: install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
       - name: unit tests
         run: uv run pytest tests/ -v --cov=src/vgstation13_mcp --cov-report=term-missing
         env:
