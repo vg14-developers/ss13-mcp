@@ -2,8 +2,8 @@ import base64
 import mimetypes
 from pathlib import Path
 
-from vgstation13_mcp import dmi
-from vgstation13_mcp.snapshot import snapshot_dir
+from vgstation13_mcp import dmi, rsi
+from vgstation13_mcp.snapshot import cache_dir, snapshot_dir
 
 
 def _resolve(path: str) -> Path:
@@ -34,3 +34,20 @@ def list_dmi_states(dmi_path: str) -> list[dict]:
     if not target.exists():
         raise FileNotFoundError(dmi_path)
     return dmi.list_states(target)
+
+
+def convert_dmi(dmi_path: str, state: str | None = None) -> dict:
+    target = _resolve(dmi_path)
+    if not target.exists():
+        raise FileNotFoundError(dmi_path)
+    parsed = dmi.load_dmi(target)
+    rel = Path(dmi_path).with_suffix("")
+    state_part = state or "all"
+    out_dir = cache_dir() / "conversions" / str(rel) / state_part
+    out_dir.mkdir(parents=True, exist_ok=True)
+    rsi.write_rsi(parsed, out_dir, state_filter=state)
+    return {
+        "rsi_path": str(out_dir),
+        "states": [s.name for s in parsed.states if not state or s.name == state],
+        "url": None,
+    }

@@ -2,6 +2,7 @@ import logging
 
 from mcp.server.fastmcp import FastMCP
 
+from vgstation13_mcp.tools.assets import convert_dmi as _convert_dmi
 from vgstation13_mcp.tools.assets import list_dmi_states as _list_dmi_states
 from vgstation13_mcp.tools.assets import read_asset as _read_asset
 from vgstation13_mcp.tools.dm_index import find_proc as _find_proc
@@ -82,6 +83,12 @@ def read_asset(path: str) -> dict:
 def list_dmi_states(dmi_path: str) -> list[dict]:
     """List the states in a DMI sprite sheet without converting it."""
     return _list_dmi_states(dmi_path)
+
+
+@mcp.tool()
+def convert_dmi(dmi_path: str, state: str | None = None) -> dict:
+    """Convert a DMI to a Robust SS14 RSI. Returns local path + URL."""
+    return _convert_dmi(dmi_path, state=state)
 
 
 def main() -> None:
