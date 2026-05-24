@@ -1,9 +1,9 @@
-import json
-import shutil
-import subprocess
+import re
 from pathlib import Path
 
 from ss13_mcp.snapshot import ss13_dir
+
+_MAX_PER_FILE = 50  # cap per-file hits so a runaway match in one file can't drown out the result
 
 
 def _resolve(path: str) -> Path:
@@ -49,41 +49,36 @@ def read_file(path: str, range: list[int] | None = None) -> str:
 
 
 def search_files(pattern: str, glob: str | None = None, limit: int = 200) -> list[dict]:
-    """Ripgrep search across the SS13 checkout. Returns up to `limit` hits."""
-    rg = shutil.which("rg")
-    if not rg:
-        raise RuntimeError("ripgrep (rg) not installed")
-    args = [rg, "--json", "--max-count", "50", pattern]
-    if glob:
-        args += ["--glob", glob]
-    args.append(".")
+    """Regex search across the SS13 checkout. Returns up to `limit` hits.
+
+    `pattern` is a Python regex. `glob` is a pathlib-style glob relative to the
+    checkout root (e.g. `code/**/*.dm`); without it, every file under the root is
+    scanned. Binary files and files that can't be decoded as UTF-8 are skipped.
+    """
+    try:
+        regex = re.compile(pattern)
+    except re.error as e:
+        raise ValueError(f"invalid regex {pattern!r}: {e}") from e
+
     root = ss13_dir().resolve()
-    proc = subprocess.run(args, capture_output=True, text=True, check=False, cwd=str(root))
-    if proc.returncode not in (0, 1):  # 1 = no matches, still success
-        raise RuntimeError(f"ripgrep failed: {proc.stderr.strip()}")
+    files = root.glob(glob) if glob else root.rglob("*")
+
     out: list[dict] = []
-    for line in proc.stdout.splitlines():
-        if not line:
+    for path in files:
+        if not path.is_file():
             continue
-        event = json.loads(line)
-        if event.get("type") != "match":
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
             continue
-        data = event["data"]
-        raw_path = data["path"]["text"]
-        rel_path = Path(raw_path)
-        if rel_path.is_absolute():
-            try:
-                rel_path = rel_path.relative_to(root)
-            except ValueError:
-                continue
-        rel = rel_path.as_posix().lstrip("./")
-        out.append(
-            {
-                "path": rel,
-                "line": data["line_number"],
-                "text": data["lines"]["text"].rstrip("\n"),
-            }
-        )
+        rel = path.relative_to(root).as_posix()
+        per_file = 0
+        for lineno, line in enumerate(text.splitlines(), 1):
+            if regex.search(line):
+                out.append({"path": rel, "line": lineno, "text": line})
+                per_file += 1
+                if len(out) >= limit or per_file >= _MAX_PER_FILE:
+                    break
         if len(out) >= limit:
             break
     return out

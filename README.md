@@ -86,8 +86,6 @@ works via the `repo_url=` parameter.
 ## System requirements
 
 - **git** on `$PATH` (only needed if you ask setup to clone for you).
-- **ripgrep** (`rg`) on `$PATH` for the `search_files` tool. Without it, that one
-  tool errors; everything else still works.
 - A SpacemanDMM-supported platform for `dmm-tools` (auto-downloaded):
   x86_64 Linux, x86_64 Windows, x86_64 macOS, arm64 macOS via Rosetta.
   For other platforms, build `dmm-tools` yourself and set `SS13_DMM_TOOLS_PATH`.
