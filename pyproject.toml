@@ -1,7 +1,7 @@
 [project]
 name = "vgstation13-mcp"
 version = "0.1.0"
-description = "Local MCP server exposing vgstation13 source, assets, and wiki to AI coding agents"
+description = "Local MCP server exposing vgstation13 source and assets to AI coding agents"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.12,<3.13"
@@ -18,9 +18,6 @@ classifiers = [
 ]
 dependencies = [
   "mcp==1.2.0",
-  "httpx==0.27.2",
-  "selectolax==0.3.21",
-  "html2text==2024.2.26",
   "pillow==11.0.0",
   "platformdirs==4.3.6",
 ]

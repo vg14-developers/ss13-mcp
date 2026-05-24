@@ -1,12 +1,12 @@
-"""First-run bootstrap: materialize the vg13 snapshot under the user's cache dir.
+"""Setup tool exposed via MCP. Replaces the old auto-bootstrap.
 
-The first launch of `vgstation13-mcp` runs this. It is heavy (clones vgstation13,
-downloads dmm-tools, fetches or crawls the ss13.moe wiki, builds the DM type
-index) and may take 20-30 minutes. Subsequent launches detect the existing
-snapshot and skip everything.
+Flow: the agent asks the user where their vgstation13 checkout is (or where
+they'd like one cloned), then invokes `setup(vg13_path=...)`. This validates
+or clones the repo, downloads the matching dmm-tools binary, builds the DM
+type index, and writes a small config so future tool calls know where to
+look.
 
-To re-run the bootstrap, delete the snapshot directory (`vgstation13-mcp
-snapshot path` is printed at startup) and launch again.
+Idempotent: re-running with the same vg13_path is a no-op unless force=true.
 """
 
 from __future__ import annotations
@@ -19,48 +19,22 @@ import shutil
 import stat
 import subprocess
 import sys
-import tarfile
-import tempfile
-import zipfile
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.request import Request, urlopen
 
-from vgstation13_mcp.snapshot import snapshot_dir
+from vgstation13_mcp.snapshot import config_path, snapshot_dir, write_config
 
 log = logging.getLogger(__name__)
 
-# Pin the vg13 commit + the dmm-tools release. Editing these changes what
-# every fresh install materializes; existing installs are unaffected.
-DEFAULT_VG13_SHA_FILE = Path(__file__).resolve().parents[2] / "snapshot.json"
+# Default vgstation13 commit used when cloning fresh. Bump alongside any
+# breaking changes you want new installs to pick up. Users can override via
+# the `sha` parameter to setup() or the VG13_SHA env var.
+DEFAULT_VG13_SHA = "8f05182163946c4133aa829e5e4ea96c1abc3d37"
+
 DMM_TOOLS_RELEASE = "suite-1.10"
 DMM_TOOLS_REPO = "SpaceManiac/SpacemanDMM"
-
-# Wiki tarball published as a GitHub Release on this repo. If absent, fall back
-# to crawling ss13.moe directly (slow, polite 1 req/sec).
-WIKI_TARBALL_URL = (
-    "https://github.com/vg14-developers/vgstation13-mcp/releases/download/wiki/wiki.tar.gz"
-)
-
-
-def _pinned_vg13_sha() -> str:
-    sha = os.environ.get("VG13_SHA")
-    if sha:
-        return sha
-    data = json.loads(DEFAULT_VG13_SHA_FILE.read_text())
-    sha = data.get("vg13_sha", "")
-    if not sha or sha == "0" * 40:
-        raise RuntimeError(
-            "snapshot.json has no pinned vg13_sha. Set VG13_SHA env var or edit "
-            "snapshot.json to a real vgstation-coders/vgstation13 commit."
-        )
-    return sha
-
-
-def _banner(msg: str) -> None:
-    bar = "=" * max(60, len(msg) + 4)
-    print(bar, file=sys.stderr)
-    print(f"  {msg}", file=sys.stderr)
-    print(bar, file=sys.stderr, flush=True)
+VG13_GIT_URL = "https://github.com/vgstation-coders/vgstation13.git"
 
 
 def _step(msg: str) -> None:
@@ -68,7 +42,6 @@ def _step(msg: str) -> None:
 
 
 def _dmm_tools_url() -> tuple[str, str]:
-    """Return (download_url, binary_filename) for the current platform."""
     sysname = platform.system().lower()
     machine = platform.machine().lower()
     if sysname == "windows":
@@ -96,57 +69,56 @@ def _dmm_tools_url() -> tuple[str, str]:
     )
 
 
-def _download(url: str, dest: Path) -> bool:
-    """Download `url` to `dest`. Returns False on 404, raises on other errors."""
+def _download(url: str, dest: Path) -> None:
     req = Request(url, headers={"User-Agent": "vgstation13-mcp-setup"})
-    try:
-        with urlopen(req) as resp:
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            with dest.open("wb") as f:
-                shutil.copyfileobj(resp, f)
-        return True
-    except Exception as e:
-        if hasattr(e, "code") and e.code == 404:  # type: ignore[attr-defined]
-            return False
-        raise
+    with urlopen(req) as resp:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        with dest.open("wb") as f:
+            shutil.copyfileobj(resp, f)
 
 
-def _ensure_dmm_tools(snapshot: Path) -> Path:
+def _ensure_dmm_tools() -> Path:
     override = os.environ.get("VG_DMM_TOOLS_PATH")
     if override:
         return Path(override)
-    bin_dir = snapshot / "bin"
+    bin_dir = snapshot_dir() / "bin"
     bin_dir.mkdir(parents=True, exist_ok=True)
     url, name = _dmm_tools_url()
     dest = bin_dir / name
     if dest.exists():
         return dest
     _step(f"downloading dmm-tools from {url}")
-    if not _download(url, dest):
-        raise RuntimeError(
-            f"dmm-tools download returned 404: {url}. The pinned SpacemanDMM "
-            f"release ({DMM_TOOLS_RELEASE}) may not publish a binary for this "
-            "platform; build from source and set VG_DMM_TOOLS_PATH."
-        )
+    _download(url, dest)
     dest.chmod(dest.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
     return dest
 
 
+def _looks_like_vg13(path: Path) -> bool:
+    return (path / "code").is_dir() and (path / "icons").is_dir()
+
+
+def _git_head_sha(path: Path) -> str | None:
+    if not (path / ".git").exists():
+        return None
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=path,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return result.stdout.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None
+
+
 def _clone_vg13(sha: str, dest: Path) -> None:
-    if dest.exists() and (dest / ".git").exists():
-        _step(f"vg13 clone already present at {dest}; skipping")
-        return
     _step(f"cloning vgstation-coders/vgstation13 @ {sha[:8]} -> {dest}")
     dest.mkdir(parents=True, exist_ok=True)
     subprocess.run(["git", "init", "-q"], cwd=dest, check=True)
     subprocess.run(
-        [
-            "git",
-            "remote",
-            "add",
-            "origin",
-            "https://github.com/vgstation-coders/vgstation13.git",
-        ],
+        ["git", "remote", "add", "origin", VG13_GIT_URL],
         cwd=dest,
         check=True,
     )
@@ -160,12 +132,8 @@ def _clone_vg13(sha: str, dest: Path) -> None:
 
 
 def _build_dm_index(vg13: Path, dmm_tools: Path, out_dir: Path) -> None:
-    if (out_dir / "types.json").exists():
-        _step(f"DM index already present at {out_dir}; skipping")
-        return
-    _step("building DM type index (this is the slowest local step, ~3-10 min)")
+    _step("building DM type index (slowest local step, ~3-10 min)")
     env = os.environ.copy()
-    # build_dm_index reads VG_DMM_TOOLS to locate the binary.
     env["VG_DMM_TOOLS"] = str(dmm_tools)
     subprocess.run(
         [sys.executable, "-m", "pipeline.build_dm_index", str(vg13), str(out_dir)],
@@ -174,70 +142,80 @@ def _build_dm_index(vg13: Path, dmm_tools: Path, out_dir: Path) -> None:
     )
 
 
-def _ensure_wiki(out_dir: Path) -> None:
-    if (out_dir / "index.json").exists():
-        _step(f"wiki snapshot already present at {out_dir}; skipping")
-        return
-    out_dir.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(suffix=".tar.gz", delete=False) as tmp:
-        tmp_path = Path(tmp.name)
-    try:
-        _step(f"trying wiki tarball from {WIKI_TARBALL_URL}")
-        if _download(WIKI_TARBALL_URL, tmp_path):
-            _step(f"extracting wiki tarball -> {out_dir}")
-            if zipfile.is_zipfile(tmp_path):
-                with zipfile.ZipFile(tmp_path) as zf:
-                    zf.extractall(out_dir)
-            else:
-                with tarfile.open(tmp_path, "r:gz") as tf:
-                    tf.extractall(out_dir)
-            return
-        _step("wiki tarball not published; falling back to live crawl (~20 min)")
-    finally:
-        tmp_path.unlink(missing_ok=True)
-    _banner(
-        "POLITE NOTICE: crawling ss13.moe at 1 request/second. "
-        "This is a one-time per-install operation."
-    )
-    from pipeline.crawl_wiki import main as crawl_main
+def setup(
+    vg13_path: str,
+    clone_if_missing: bool = False,
+    sha: str | None = None,
+    force: bool = False,
+) -> dict:
+    """Configure the MCP server against a vgstation13 checkout.
 
-    crawl_main(out_dir)
+    Args:
+        vg13_path: Absolute path to an existing vgstation13 clone, or the
+            directory you'd like one cloned into (combine with
+            clone_if_missing=true).
+        clone_if_missing: If true and `vg13_path` does not exist (or is empty),
+            clone vgstation-coders/vgstation13 into it. If false and the path
+            is missing, this raises.
+        sha: Commit SHA to check out when cloning. Defaults to the pinned
+            commit baked into this release.
+        force: Rebuild the DM index even if one already exists for this path.
 
+    Returns a summary dict the caller can show to the user.
+    """
+    vg13 = Path(vg13_path).expanduser().resolve()
 
-def _pack(vg13: Path, index: Path, wiki: Path, out: Path, sha: str) -> None:
-    if (out / "SHA").exists():
-        return
-    from pipeline.pack_artifacts import pack
+    if vg13.exists() and any(vg13.iterdir()):
+        if not _looks_like_vg13(vg13):
+            raise ValueError(
+                f"{vg13} exists but doesn't look like a vgstation13 checkout "
+                "(expected code/ and icons/ subdirs). Point setup at a real "
+                "vgstation13 clone or an empty/nonexistent directory with "
+                "clone_if_missing=true."
+            )
+        actual_sha = _git_head_sha(vg13) or "unknown"
+        _step(f"using existing vg13 checkout at {vg13} (HEAD={actual_sha[:8]})")
+    else:
+        if not clone_if_missing:
+            raise FileNotFoundError(
+                f"{vg13} does not exist. Re-run with clone_if_missing=true to "
+                "clone vgstation-coders/vgstation13 into that directory."
+            )
+        if not shutil.which("git"):
+            raise RuntimeError("git is required to clone vgstation13 but was not found on PATH")
+        clone_sha = sha or os.environ.get("VG13_SHA") or DEFAULT_VG13_SHA
+        _clone_vg13(clone_sha, vg13)
+        actual_sha = clone_sha
 
-    _step(f"packing snapshot -> {out}")
-    pack(vg13, index, wiki, out, sha)
+    dmm = _ensure_dmm_tools()
 
+    index_dir = snapshot_dir() / "index"
+    if force or not (index_dir.exists() and (index_dir / "types.json").exists()):
+        if index_dir.exists():
+            shutil.rmtree(index_dir)
+        _build_dm_index(vg13, dmm, index_dir)
+    else:
+        _step(f"DM index already present at {index_dir}; skipping (pass force=true to rebuild)")
 
-def ensure_snapshot() -> Path:
-    """Materialize the snapshot if missing. Idempotent."""
-    out = snapshot_dir()
-    if (out / "SHA").exists():
-        log.info("snapshot present at %s (vg13=%s)", out, (out / "SHA").read_text().strip()[:8])
-        return out
+    cfg = {
+        "vg13_path": str(vg13),
+        "vg13_sha": actual_sha,
+        "bumped_at": datetime.now(timezone.utc).isoformat(),
+        "dmm_tools_path": str(dmm),
+    }
+    write_config(cfg)
+    _step(f"wrote config to {config_path()}")
 
-    sha = _pinned_vg13_sha()
-    _banner(
-        "vgstation13-mcp first-run setup: ~20-30 minutes one-time. "
-        "Subsequent launches start in seconds."
-    )
-    _step(f"snapshot will live at: {out}")
+    types_count = 0
+    types_file = index_dir / "types.json"
+    if types_file.exists():
+        types_count = len(json.loads(types_file.read_text()))
 
-    work = out.parent / "_build"
-    work.mkdir(parents=True, exist_ok=True)
-    vg13_clone = work / "vg13"
-    index_dir = work / "index"
-    wiki_dir = work / "wiki"
-
-    dmm = _ensure_dmm_tools(work)
-    _clone_vg13(sha, vg13_clone)
-    _build_dm_index(vg13_clone, dmm, index_dir)
-    _ensure_wiki(wiki_dir)
-    _pack(vg13_clone, index_dir, wiki_dir, out, sha)
-
-    _banner(f"first-run setup complete. snapshot at {out}")
-    return out
+    return {
+        "configured": True,
+        "vg13_path": str(vg13),
+        "vg13_sha": actual_sha,
+        "dmm_tools_path": str(dmm),
+        "snapshot_dir": str(snapshot_dir()),
+        "dm_types_count": types_count,
+    }
