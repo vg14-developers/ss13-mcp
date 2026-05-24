@@ -136,7 +136,7 @@ def _build_dm_index(vg13: Path, dmm_tools: Path, out_dir: Path) -> None:
     env = os.environ.copy()
     env["VG_DMM_TOOLS"] = str(dmm_tools)
     subprocess.run(
-        [sys.executable, "-m", "pipeline.build_dm_index", str(vg13), str(out_dir)],
+        [sys.executable, "-m", "vgstation13_mcp.pipeline.build_dm_index", str(vg13), str(out_dir)],
         check=True,
         env=env,
     )
