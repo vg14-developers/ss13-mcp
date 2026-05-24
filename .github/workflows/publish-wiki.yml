@@ -1,0 +1,49 @@
+name: publish-wiki
+
+# Manually run this ONCE (or any time you want to refresh the wiki snapshot) to
+# crawl ss13.moe, pack the result as wiki.tar.gz, and upload it as an asset on
+# the "wiki" GitHub Release. Every fresh `uvx vgstation13-mcp` install then
+# downloads this tarball instead of re-crawling the wiki itself.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  crawl-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.5.4"
+
+      - name: setup python
+        run: uv python install 3.12
+
+      - name: sync deps
+        run: uv sync --extra dev
+
+      - name: crawl ss13.moe wiki (paced 1 req/sec)
+        run: uv run python -m pipeline.crawl_wiki ./wiki_out
+
+      - name: pack tarball
+        run: |
+          cd wiki_out
+          tar -czf ../wiki.tar.gz .
+          cd ..
+          ls -la wiki.tar.gz
+
+      - name: upload to "wiki" release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: wiki
+          name: "Wiki snapshot"
+          body: "Frozen crawl of ss13.moe used by vgstation13-mcp first-run setup."
+          files: wiki.tar.gz
+          fail_on_unmatched_files: true

@@ -1,6 +1,7 @@
 """Builds the baked DM index from dmm-tools dump-types output."""
 
 import json
+import os
 import subprocess
 import sys
 from collections import defaultdict
@@ -9,8 +10,9 @@ from pathlib import Path
 
 def run_dmm_tools(vg13_clone: Path, out_json: Path) -> None:
     """Invoke dmm-tools dump-types and write its NDJSON output."""
+    dmm = os.environ.get("VG_DMM_TOOLS", "dmm-tools")
     subprocess.run(
-        ["dmm-tools", "dump-types", "--format", "json", str(vg13_clone)],
+        [dmm, "dump-types", "--format", "json", str(vg13_clone)],
         check=True,
         stdout=out_json.open("w"),
     )
