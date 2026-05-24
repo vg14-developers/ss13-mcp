@@ -1,4 +1,4 @@
 {
-  "vg13_sha": "0000000000000000000000000000000000000000",
-  "_comment": "Maintainer: set vg13_sha to a real vgstation-coders/vgstation13 commit before installs can work. Users override at install time via the VG13_SHA env var."
+  "vg13_sha": "8f05182163946c4133aa829e5e4ea96c1abc3d37",
+  "_comment": "Pinned vgstation-coders/vgstation13 Bleeding-Edge commit that every fresh install materializes. Users can override at install time via the VG13_SHA env var."
 }
