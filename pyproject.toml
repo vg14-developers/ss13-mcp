@@ -1,11 +1,11 @@
 [project]
-name = "vgstation13-mcp"
-version = "0.1.0"
-description = "Local MCP server exposing vgstation13 source and assets to AI coding agents"
+name = "ss13-mcp"
+version = "0.2.0"
+description = "Local MCP server exposing any SS13 fork's source and assets to AI coding agents"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.12,<3.13"
-keywords = ["mcp", "vgstation13", "ss13", "byond", "llm-tools"]
+keywords = ["mcp", "ss13", "spacestation13", "byond", "llm-tools"]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Environment :: Console",
@@ -32,19 +32,19 @@ dev = [
 ]
 
 [project.scripts]
-vgstation13-mcp = "vgstation13_mcp.server:main"
+ss13-mcp = "ss13_mcp.server:main"
 
 [project.urls]
-Homepage = "https://github.com/vg14-developers/vgstation13-mcp"
-Issues = "https://github.com/vg14-developers/vgstation13-mcp/issues"
-Repository = "https://github.com/vg14-developers/vgstation13-mcp"
+Homepage = "https://github.com/vg14-developers/ss13-mcp"
+Issues = "https://github.com/vg14-developers/ss13-mcp/issues"
+Repository = "https://github.com/vg14-developers/ss13-mcp"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/vgstation13_mcp"]
+packages = ["src/ss13_mcp"]
 
 [tool.ruff]
 line-length = 100

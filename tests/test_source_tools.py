@@ -1,6 +1,6 @@
 import pytest
 
-from vgstation13_mcp.tools.source import list_dir, read_file, search_files
+from ss13_mcp.tools.source import list_dir, read_file, search_files
 
 
 def test_list_dir_returns_entries(fixture_snapshot):
@@ -11,7 +11,7 @@ def test_list_dir_returns_entries(fixture_snapshot):
 
 
 def test_list_dir_rejects_escape(fixture_snapshot):
-    with pytest.raises(ValueError, match="outside vg13 checkout"):
+    with pytest.raises(ValueError, match="outside SS13 checkout"):
         list_dir("../../../etc")
 
 

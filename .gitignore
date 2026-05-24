@@ -10,5 +10,4 @@ build/
 htmlcov/
 /snapshot_data/
 /cache/
-tests/fixtures/mini-vg13/index/
-tests/fixtures/mini-vg13/wiki/
+tests/fixtures/mini-ss13/index/

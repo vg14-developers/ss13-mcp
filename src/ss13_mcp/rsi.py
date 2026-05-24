@@ -12,7 +12,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from vgstation13_mcp.dmi import Dmi, DmiState
+from ss13_mcp.dmi import Dmi, DmiState
 
 
 def _safe(name: str) -> str:
@@ -72,7 +72,7 @@ def write_rsi(dmi: Dmi, out_dir: Path, state_filter: str | None = None) -> None:
     meta = {
         "version": 1,
         "license": "CC-BY-SA-3.0",
-        "copyright": "Ported from vgstation13",
+        "copyright": "Ported from SS13",
         "size": {"x": dmi.width, "y": dmi.height},
         "states": meta_states,
     }

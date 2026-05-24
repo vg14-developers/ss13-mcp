@@ -1,4 +1,4 @@
-"""Generates tests/fixtures/mini-vg13/icons/test.dmi.
+"""Generates tests/fixtures/mini-ss13/icons/test.dmi.
 
 Run once to (re)generate the DMI fixture. The output file size may vary slightly
 across Pillow versions due to PNG encoder differences; what matters is that the
@@ -20,7 +20,7 @@ from pathlib import Path
 
 from PIL import Image
 
-OUT = Path(__file__).parent / "mini-vg13" / "icons" / "test.dmi"
+OUT = Path(__file__).parent / "mini-ss13" / "icons" / "test.dmi"
 OUT.parent.mkdir(parents=True, exist_ok=True)
 
 CELLS_PER_ROW = 7

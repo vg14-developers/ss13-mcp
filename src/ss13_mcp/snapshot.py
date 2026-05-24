@@ -4,7 +4,7 @@ from pathlib import Path
 
 from platformdirs import user_cache_dir
 
-_APP_NAME = "vgstation13-mcp"
+_APP_NAME = "ss13-mcp"
 
 
 def _default_root() -> Path:
@@ -13,12 +13,12 @@ def _default_root() -> Path:
 
 def snapshot_dir() -> Path:
     """Root directory of generated state (DM index, dmm-tools binary, config)."""
-    return Path(os.environ.get("VG_SNAPSHOT_DIR", str(_default_root() / "snapshot")))
+    return Path(os.environ.get("SS13_SNAPSHOT_DIR", str(_default_root() / "snapshot")))
 
 
 def cache_dir() -> Path:
     """Disk cache root for DMI conversions."""
-    d = Path(os.environ.get("VG_CACHE_DIR", str(_default_root() / "conversions")))
+    d = Path(os.environ.get("SS13_CACHE_DIR", str(_default_root() / "conversions")))
     d.mkdir(parents=True, exist_ok=True)
     return d
 
@@ -36,9 +36,10 @@ def load_config() -> dict:
     p = config_path()
     if not p.exists():
         raise RuntimeError(
-            "vgstation13-mcp is not set up yet. Ask the user where their vgstation13 "
-            "checkout lives (or where they'd like one cloned), then call the `setup` "
-            "tool with vg13_path=<that path>."
+            "ss13-mcp is not set up yet. Ask the user which SS13 fork they want to "
+            "work with (vg / tg / paradise / bay / goon / cm, or a custom repo URL) "
+            "and where their checkout lives or should be cloned to, then call the "
+            "`setup` tool with ss13_path=<that path>."
         )
     return json.loads(p.read_text())
 
@@ -48,12 +49,12 @@ def write_config(cfg: dict) -> None:
     config_path().write_text(json.dumps(cfg, indent=2))
 
 
-def vg13_dir() -> Path:
-    """Path to the user's vgstation13 checkout. Env var wins for tests/overrides."""
-    env = os.environ.get("VG13_PATH")
+def ss13_dir() -> Path:
+    """Path to the user's SS13 checkout. Env var wins for tests/overrides."""
+    env = os.environ.get("SS13_PATH")
     if env:
         return Path(env)
-    return Path(load_config()["vg13_path"])
+    return Path(load_config()["ss13_path"])
 
 
 def read_snapshot_sha() -> str:
@@ -61,4 +62,13 @@ def read_snapshot_sha() -> str:
         cfg = load_config()
     except RuntimeError:
         return "unknown"
-    return cfg.get("vg13_sha", "unknown")
+    return cfg.get("ss13_sha", "unknown")
+
+
+def read_fork() -> str:
+    """Short fork identifier from config, or "custom" if a raw URL was used."""
+    try:
+        cfg = load_config()
+    except RuntimeError:
+        return "unknown"
+    return cfg.get("fork", "custom")

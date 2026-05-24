@@ -5,7 +5,7 @@ from pathlib import Path as pathlib_Path
 import pytest
 from PIL import Image
 
-from vgstation13_mcp.tools.assets import convert_dmi, list_dmi_states, read_asset
+from ss13_mcp.tools.assets import convert_dmi, list_dmi_states, read_asset
 
 
 def test_read_asset_returns_base64(fixture_snapshot):
@@ -88,6 +88,6 @@ def test_walk_state_rsi_layout(fixture_snapshot):
 
 def test_safe_name_keeps_slash_distinct():
     """States named 'foo/bar' and 'foo_bar' must not collide on disk."""
-    from vgstation13_mcp.rsi import _safe
+    from ss13_mcp.rsi import _safe
 
     assert _safe("foo/bar") != _safe("foo_bar")

@@ -4,13 +4,13 @@ from pathlib import Path
 
 import pytest
 
-FIXTURE_VG13 = Path(__file__).parent / "fixtures" / "mini-vg13"
-FIXTURE_SHA = (FIXTURE_VG13 / "SHA").read_text().strip()
+FIXTURE_SS13 = Path(__file__).parent / "fixtures" / "mini-ss13"
+FIXTURE_SHA = (FIXTURE_SS13 / "SHA").read_text().strip()
 
 
 def _bake_index(out_dir: Path) -> None:
     """Generate index/ from a synthetic dmm-tools dump so DM-query tests have data."""
-    from vgstation13_mcp.pipeline.build_dm_index import massage_dmm_output
+    from ss13_mcp.pipeline.build_dm_index import massage_dmm_output
 
     records = [
         {
@@ -75,20 +75,21 @@ def _bake_index(out_dir: Path) -> None:
 
 @pytest.fixture
 def fixture_snapshot(monkeypatch, tmp_path):
-    """Stand up a fresh per-test snapshot dir + config pointing at the fixture vg13."""
+    """Stand up a fresh per-test snapshot dir + config pointing at the fixture SS13 tree."""
     snap = tmp_path / "snapshot"
     snap.mkdir()
     _bake_index(snap / "index")
     (snap / "config.json").write_text(
         json.dumps(
             {
-                "vg13_path": str(FIXTURE_VG13),
-                "vg13_sha": FIXTURE_SHA,
+                "ss13_path": str(FIXTURE_SS13),
+                "ss13_sha": FIXTURE_SHA,
+                "fork": "vg",
                 "bumped_at": datetime.now(timezone.utc).isoformat(),
             }
         )
     )
-    monkeypatch.setenv("VG_SNAPSHOT_DIR", str(snap))
-    monkeypatch.setenv("VG13_PATH", str(FIXTURE_VG13))
-    monkeypatch.setenv("VG_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("SS13_SNAPSHOT_DIR", str(snap))
+    monkeypatch.setenv("SS13_PATH", str(FIXTURE_SS13))
+    monkeypatch.setenv("SS13_CACHE_DIR", str(tmp_path / "cache"))
     return snap
