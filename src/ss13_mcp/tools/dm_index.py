@@ -2,7 +2,7 @@ import json
 from difflib import SequenceMatcher
 from functools import lru_cache
 
-from vgstation13_mcp.snapshot import snapshot_dir
+from ss13_mcp.snapshot import snapshot_dir
 
 
 @lru_cache(maxsize=1)

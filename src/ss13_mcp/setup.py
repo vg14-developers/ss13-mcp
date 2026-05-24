@@ -1,0 +1,265 @@
+"""Setup tool exposed via MCP.
+
+Flow: the agent asks the user which SS13 fork they want to work with and
+where their checkout lives (or where they'd like one cloned), then invokes
+`setup(ss13_path=..., fork=..., repo_url=...)`. This validates or clones
+the repo, downloads the matching dmm-tools binary, builds the DM type
+index, and writes a small config so future tool calls know where to look.
+
+Idempotent: re-running with the same ss13_path is a no-op unless force=true.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+import platform
+import shutil
+import stat
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+from urllib.request import Request, urlopen
+
+from ss13_mcp.snapshot import config_path, snapshot_dir, write_config
+
+log = logging.getLogger(__name__)
+
+DMM_TOOLS_RELEASE = "suite-1.10"
+DMM_TOOLS_REPO = "SpaceManiac/SpacemanDMM"
+
+# Short identifiers for well-known SS13 forks. Pass `fork="<key>"` to setup()
+# instead of spelling out the full repo_url. Add new entries here as forks
+# get exercised. Order matters for documentation only.
+KNOWN_FORKS: dict[str, str] = {
+    "vg": "https://github.com/vgstation-coders/vgstation13.git",
+    "tg": "https://github.com/tgstation/tgstation.git",
+    "paradise": "https://github.com/ParadiseSS13/Paradise.git",
+    "bay": "https://github.com/Baystation12/Baystation12.git",
+    "goon": "https://github.com/goonstation/goonstation.git",
+    "cm": "https://github.com/cmss13-devs/cmss13.git",
+}
+
+
+def _step(msg: str) -> None:
+    print(f"[setup] {msg}", file=sys.stderr, flush=True)
+
+
+def _dmm_tools_url() -> tuple[str, str]:
+    sysname = platform.system().lower()
+    machine = platform.machine().lower()
+    if sysname == "windows":
+        return (
+            f"https://github.com/{DMM_TOOLS_REPO}/releases/download/"
+            f"{DMM_TOOLS_RELEASE}/dmm-tools.exe",
+            "dmm-tools.exe",
+        )
+    if sysname == "linux" and machine in {"x86_64", "amd64"}:
+        return (
+            f"https://github.com/{DMM_TOOLS_REPO}/releases/download/"
+            f"{DMM_TOOLS_RELEASE}/dmm-tools",
+            "dmm-tools",
+        )
+    if sysname == "darwin":
+        return (
+            f"https://github.com/{DMM_TOOLS_REPO}/releases/download/"
+            f"{DMM_TOOLS_RELEASE}/dmm-tools",
+            "dmm-tools",
+        )
+    raise RuntimeError(
+        f"no prebuilt dmm-tools for {sysname}/{machine}. Build SpacemanDMM "
+        f"from source (https://github.com/{DMM_TOOLS_REPO}) and set "
+        "SS13_DMM_TOOLS_PATH to the resulting binary."
+    )
+
+
+def _download(url: str, dest: Path) -> None:
+    req = Request(url, headers={"User-Agent": "ss13-mcp-setup"})
+    with urlopen(req) as resp:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        with dest.open("wb") as f:
+            shutil.copyfileobj(resp, f)
+
+
+def _ensure_dmm_tools() -> Path:
+    override = os.environ.get("SS13_DMM_TOOLS_PATH")
+    if override:
+        return Path(override)
+    bin_dir = snapshot_dir() / "bin"
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    url, name = _dmm_tools_url()
+    dest = bin_dir / name
+    if dest.exists():
+        return dest
+    _step(f"downloading dmm-tools from {url}")
+    _download(url, dest)
+    dest.chmod(dest.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    return dest
+
+
+def _looks_like_ss13(path: Path) -> bool:
+    """Standard SS13 fork layout: top-level code/ and icons/ directories."""
+    return (path / "code").is_dir() and (path / "icons").is_dir()
+
+
+def _git_head_sha(path: Path) -> str | None:
+    if not (path / ".git").exists():
+        return None
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=path,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return result.stdout.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None
+
+
+def _resolve_repo_url(fork: str | None, repo_url: str | None) -> tuple[str, str]:
+    """Returns (repo_url, fork_label). Exactly one of fork/repo_url must be given."""
+    if fork and repo_url:
+        raise ValueError("pass either `fork` or `repo_url`, not both")
+    if fork:
+        if fork not in KNOWN_FORKS:
+            known = ", ".join(sorted(KNOWN_FORKS))
+            raise ValueError(f"unknown fork {fork!r}. Known forks: {known}")
+        return KNOWN_FORKS[fork], fork
+    if repo_url:
+        return repo_url, "custom"
+    raise ValueError(
+        "cloning requires either `fork=<key>` (one of "
+        f"{', '.join(sorted(KNOWN_FORKS))}) or `repo_url=<git-url>`"
+    )
+
+
+def _clone(repo_url: str, sha: str | None, dest: Path) -> str:
+    """Clone repo_url into dest. If sha is None, clone the remote's default branch.
+
+    Returns the resolved HEAD SHA.
+    """
+    label = f"{repo_url} @ {sha[:8]}" if sha else f"{repo_url} (default branch HEAD)"
+    _step(f"cloning {label} -> {dest}")
+    dest.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init", "-q"], cwd=dest, check=True)
+    subprocess.run(["git", "remote", "add", "origin", repo_url], cwd=dest, check=True)
+    if sha:
+        subprocess.run(["git", "fetch", "--depth", "1", "origin", sha], cwd=dest, check=True)
+        subprocess.run(["git", "checkout", "FETCH_HEAD"], cwd=dest, check=True)
+    else:
+        # Fetch and check out whatever the remote's HEAD points at.
+        subprocess.run(["git", "fetch", "--depth", "1", "origin", "HEAD"], cwd=dest, check=True)
+        subprocess.run(["git", "checkout", "FETCH_HEAD"], cwd=dest, check=True)
+    actual = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=dest, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    if sha and actual != sha:
+        raise RuntimeError(f"SHA mismatch: requested {sha}, got {actual}")
+    return actual
+
+
+def _build_dm_index(ss13: Path, dmm_tools: Path, out_dir: Path) -> None:
+    _step("building DM type index (slowest local step, ~3-10 min)")
+    env = os.environ.copy()
+    env["SS13_DMM_TOOLS"] = str(dmm_tools)
+    subprocess.run(
+        [sys.executable, "-m", "ss13_mcp.pipeline.build_dm_index", str(ss13), str(out_dir)],
+        check=True,
+        env=env,
+    )
+
+
+def setup(
+    ss13_path: str,
+    fork: str | None = None,
+    repo_url: str | None = None,
+    clone_if_missing: bool = False,
+    sha: str | None = None,
+    force: bool = False,
+) -> dict:
+    """Configure the MCP server against an SS13 fork checkout.
+
+    Args:
+        ss13_path: Absolute path to an existing SS13 fork clone, or the
+            directory you'd like one cloned into (combine with
+            clone_if_missing=true).
+        fork: Shortcut for a known fork (one of: vg, tg, paradise, bay, goon,
+            cm). Only consulted when cloning; ignored if the path already
+            exists. Mutually exclusive with repo_url.
+        repo_url: Git URL of an SS13 fork to clone. Use this for forks not
+            covered by the `fork` shortcut. Mutually exclusive with fork.
+        clone_if_missing: If true and `ss13_path` does not exist (or is empty),
+            clone the chosen repo into it. If false and the path is missing,
+            this raises.
+        sha: Commit SHA to check out when cloning. Defaults to the remote's
+            default branch HEAD.
+        force: Rebuild the DM index even if one already exists for this path.
+
+    Returns a summary dict the caller can show to the user.
+    """
+    ss13 = Path(ss13_path).expanduser().resolve()
+
+    fork_label = "unknown"
+    if ss13.exists() and any(ss13.iterdir()):
+        if not _looks_like_ss13(ss13):
+            raise ValueError(
+                f"{ss13} exists but doesn't look like an SS13 checkout "
+                "(expected code/ and icons/ subdirs). Point setup at a real "
+                "SS13 fork clone or an empty/nonexistent directory with "
+                "clone_if_missing=true."
+            )
+        actual_sha = _git_head_sha(ss13) or "unknown"
+        # Preserve fork label across re-runs that just reuse an existing checkout.
+        fork_label = fork or "custom"
+        _step(f"using existing SS13 checkout at {ss13} (HEAD={actual_sha[:8]})")
+    else:
+        if not clone_if_missing:
+            raise FileNotFoundError(
+                f"{ss13} does not exist. Re-run with clone_if_missing=true and "
+                "either fork=<key> or repo_url=<git-url> to clone a fork into "
+                "that directory."
+            )
+        if not shutil.which("git"):
+            raise RuntimeError("git is required to clone but was not found on PATH")
+        url, fork_label = _resolve_repo_url(fork, repo_url)
+        clone_sha = sha or os.environ.get("SS13_SHA")
+        actual_sha = _clone(url, clone_sha, ss13)
+
+    dmm = _ensure_dmm_tools()
+
+    index_dir = snapshot_dir() / "index"
+    if force or not (index_dir.exists() and (index_dir / "types.json").exists()):
+        if index_dir.exists():
+            shutil.rmtree(index_dir)
+        _build_dm_index(ss13, dmm, index_dir)
+    else:
+        _step(f"DM index already present at {index_dir}; skipping (pass force=true to rebuild)")
+
+    cfg = {
+        "ss13_path": str(ss13),
+        "ss13_sha": actual_sha,
+        "fork": fork_label,
+        "bumped_at": datetime.now(timezone.utc).isoformat(),
+        "dmm_tools_path": str(dmm),
+    }
+    write_config(cfg)
+    _step(f"wrote config to {config_path()}")
+
+    types_count = 0
+    types_file = index_dir / "types.json"
+    if types_file.exists():
+        types_count = len(json.loads(types_file.read_text()))
+
+    return {
+        "configured": True,
+        "ss13_path": str(ss13),
+        "ss13_sha": actual_sha,
+        "fork": fork_label,
+        "dmm_tools_path": str(dmm),
+        "snapshot_dir": str(snapshot_dir()),
+        "dm_types_count": types_count,
+    }

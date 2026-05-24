@@ -5,9 +5,9 @@ import os
 import time
 from pathlib import Path
 
-from vgstation13_mcp.snapshot import cache_dir, read_snapshot_sha
+from ss13_mcp.snapshot import cache_dir, read_snapshot_sha
 
-MAX_BYTES = int(os.environ.get("VG_CACHE_MAX_BYTES", str(5 * 1024 * 1024 * 1024)))
+MAX_BYTES = int(os.environ.get("SS13_CACHE_MAX_BYTES", str(5 * 1024 * 1024 * 1024)))
 
 
 def _key(dmi_path: str, state: str | None) -> str:

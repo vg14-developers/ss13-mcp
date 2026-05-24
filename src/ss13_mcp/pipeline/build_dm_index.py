@@ -8,11 +8,11 @@ from collections import defaultdict
 from pathlib import Path
 
 
-def run_dmm_tools(vg13_clone: Path, out_json: Path) -> None:
+def run_dmm_tools(ss13_clone: Path, out_json: Path) -> None:
     """Invoke dmm-tools dump-types and write its NDJSON output."""
-    dmm = os.environ.get("VG_DMM_TOOLS", "dmm-tools")
+    dmm = os.environ.get("SS13_DMM_TOOLS", "dmm-tools")
     subprocess.run(
-        [dmm, "dump-types", "--format", "json", str(vg13_clone)],
+        [dmm, "dump-types", "--format", "json", str(ss13_clone)],
         check=True,
         stdout=out_json.open("w"),
     )
@@ -68,11 +68,11 @@ def massage_dmm_output(records: list[dict], out_dir: Path) -> None:
 
 
 def main() -> None:
-    vg13 = Path(sys.argv[1])
+    ss13 = Path(sys.argv[1])
     out = Path(sys.argv[2])
     raw = out / "dmm-raw.json"
     raw.parent.mkdir(parents=True, exist_ok=True)
-    run_dmm_tools(vg13, raw)
+    run_dmm_tools(ss13, raw)
     records = [json.loads(line) for line in raw.read_text().splitlines() if line]
     massage_dmm_output(records, out)
     raw.unlink()

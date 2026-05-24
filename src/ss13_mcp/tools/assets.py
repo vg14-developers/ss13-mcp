@@ -3,15 +3,15 @@ import json
 import mimetypes
 from pathlib import Path
 
-from vgstation13_mcp import cache, dmi, rsi
-from vgstation13_mcp.snapshot import vg13_dir
+from ss13_mcp import cache, dmi, rsi
+from ss13_mcp.snapshot import ss13_dir
 
 
 def _resolve(path: str) -> Path:
-    root = vg13_dir().resolve()
+    root = ss13_dir().resolve()
     target = (root / path).resolve()
     if root not in target.parents and target != root:
-        raise ValueError(f"path outside vg13 checkout: {path}")
+        raise ValueError(f"path outside SS13 checkout: {path}")
     return target
 
 

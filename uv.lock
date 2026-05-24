@@ -546,6 +546,38 @@ wheels = [
 ]
 
 [[package]]
+name = "ss13-mcp"
+version = "0.2.0"
+source = { editable = "." }
+dependencies = [
+    { name = "mcp" },
+    { name = "pillow" },
+    { name = "platformdirs" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "pytest-timeout" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "mcp", specifier = "==1.23.0" },
+    { name = "pillow", specifier = "==12.2.0" },
+    { name = "platformdirs", specifier = "==4.3.6" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = "==8.3.3" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = "==0.24.0" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = "==5.0.0" },
+    { name = "pytest-timeout", marker = "extra == 'dev'", specifier = "==2.3.1" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = "==0.7.4" },
+]
+provides-extras = ["dev"]
+
+[[package]]
 name = "sse-starlette"
 version = "3.0.3"
 source = { registry = "https://pypi.org/simple" }
@@ -603,35 +635,3 @@ sdist = { url = "https://files.pythonhosted.org/packages/e0/fc/1d785078eefd6945f
 wheels = [
     { url = "https://files.pythonhosted.org/packages/eb/14/78bd0e95dd2444b6caacbca2b730671d4295ccb628ef58b81bee903629df/uvicorn-0.32.0-py3-none-any.whl", hash = "sha256:60b8f3a5ac027dcd31448f411ced12b5ef452c646f76f02f8cc3f25d8d26fd82", size = 63723, upload-time = "2024-10-15T17:27:32.022Z" },
 ]
-
-[[package]]
-name = "vgstation13-mcp"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "mcp" },
-    { name = "pillow" },
-    { name = "platformdirs" },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "pytest-timeout" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "mcp", specifier = "==1.23.0" },
-    { name = "pillow", specifier = "==12.2.0" },
-    { name = "platformdirs", specifier = "==4.3.6" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = "==8.3.3" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = "==0.24.0" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = "==5.0.0" },
-    { name = "pytest-timeout", marker = "extra == 'dev'", specifier = "==2.3.1" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = "==0.7.4" },
-]
-provides-extras = ["dev"]

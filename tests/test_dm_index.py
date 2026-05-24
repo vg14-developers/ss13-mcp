@@ -1,6 +1,6 @@
 import pytest
 
-from vgstation13_mcp.tools.dm_index import find_proc, find_var, get_type, list_subtypes, path_lookup
+from ss13_mcp.tools.dm_index import find_proc, find_var, get_type, list_subtypes, path_lookup
 
 
 def test_get_type_returns_full_record(fixture_snapshot):
