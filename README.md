@@ -12,7 +12,8 @@ and `icons/` dirs). Ships with shortcuts for **vg**, **tg**, **paradise**,
 
 - **Source proxy:** read SS13 source files at the commit you've checked out.
 - **DM index:** structured queries against the BYOND type tree (subtypes, procs,
-  vars, fuzzy path lookup) using SpacemanDMM's `dmm-tools`.
+  vars, fuzzy path lookup), built from a vendored Rust binary (`dm-dump`) that
+  uses SpacemanDMM's `dreammaker` parser crate.
 - **Assets:** on-demand DMI → Robust SS14 RSI conversion with disk-cached results.
 
 ## Install
@@ -56,9 +57,10 @@ Tell the agent something like:
 Pass `sha="<commit>"` if you want a specific commit instead of the default
 branch HEAD.
 
-Setup then downloads the matching `dmm-tools` binary and builds the DM type
-index (~3–10 min on a real fork). The result is persisted under your platform's
-user cache dir so subsequent launches start in seconds:
+Setup then downloads the matching `dm-dump` binary (from this repo's GitHub
+Releases) and builds the DM type index (~3–10 min on a real fork). The result
+is persisted under your platform's user cache dir so subsequent launches start
+in seconds:
 
 | OS | Default snapshot path |
 |----|----|
@@ -86,9 +88,12 @@ works via the `repo_url=` parameter.
 ## System requirements
 
 - **git** on `$PATH` (only needed if you ask setup to clone for you).
-- A SpacemanDMM-supported platform for `dmm-tools` (auto-downloaded):
-  x86_64 Linux, x86_64 Windows, x86_64 macOS, arm64 macOS via Rosetta.
-  For other platforms, build `dmm-tools` yourself and set `SS13_DMM_TOOLS_PATH`.
+- A platform with a prebuilt `dm-dump` binary (auto-downloaded from this
+  repo's GitHub Releases): x86_64 Linux, x86_64 Windows, x86_64 macOS, arm64
+  macOS. For other platforms, build it yourself with
+  `cargo build --release --manifest-path dm-dump/Cargo.toml` and point
+  `SS13_DM_DUMP_PATH` at the resulting binary. Setup probes the binary up
+  front and fails fast with guidance if it's missing or broken (issue #16).
 
 ## Configuration
 
@@ -100,7 +105,22 @@ All optional — defaults work out of the box.
 | `SS13_SHA` | none | Default commit to check out when `clone_if_missing=true` and no `sha` is passed. Without it, the remote's default-branch HEAD is used. |
 | `SS13_SNAPSHOT_DIR` | platform cache dir | Where the DM index + config live. |
 | `SS13_CACHE_DIR` | platform cache dir | Where DMI→RSI conversions are cached. |
-| `SS13_DMM_TOOLS_PATH` | downloaded | Override the `dmm-tools` binary location. |
+| `SS13_DM_DUMP_PATH` | downloaded | Override the `dm-dump` binary location. |
+
+## Building dm-dump
+
+The DM index pipeline shells out to `dm-dump`, a small Rust binary in
+`dm-dump/` that uses SpacemanDMM's `dreammaker` parser crate to walk the
+BYOND type tree and emit NDJSON. Prebuilts are downloaded from this repo's
+releases; to build locally:
+
+```bash
+cargo build --release --manifest-path dm-dump/Cargo.toml
+export SS13_DM_DUMP_PATH=$(pwd)/dm-dump/target/release/dm-dump
+```
+
+Releases are cut by pushing a `dm-dump-v*` tag; CI builds and attaches
+platform binaries to the release.
 
 ## License
 

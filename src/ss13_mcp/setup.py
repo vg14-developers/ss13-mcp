@@ -27,8 +27,11 @@ from ss13_mcp.snapshot import config_path, snapshot_dir, write_config
 
 log = logging.getLogger(__name__)
 
-DMM_TOOLS_RELEASE = "suite-1.10"
-DMM_TOOLS_REPO = "SpaceManiac/SpacemanDMM"
+# We ship our own type-tree dumper (built from the dreammaker parser crate)
+# because upstream SpacemanDMM doesn't expose a `dump-types` subcommand. See
+# dm-dump/ in this repo and issue #16.
+DM_DUMP_RELEASE = "dm-dump-v0.1.0"
+DM_DUMP_REPO = "vg14-developers/ss13-mcp"
 
 # Short identifiers for well-known SS13 forks. Pass `fork="<key>"` to setup()
 # instead of spelling out the full repo_url. Add new entries here as forks
@@ -47,31 +50,25 @@ def _step(msg: str) -> None:
     print(f"[setup] {msg}", file=sys.stderr, flush=True)
 
 
-def _dmm_tools_url() -> tuple[str, str]:
+def _dm_dump_url() -> tuple[str, str]:
+    """Return (download_url, local_filename) for the current platform's dm-dump."""
     sysname = platform.system().lower()
     machine = platform.machine().lower()
-    if sysname == "windows":
-        return (
-            f"https://github.com/{DMM_TOOLS_REPO}/releases/download/"
-            f"{DMM_TOOLS_RELEASE}/dmm-tools.exe",
-            "dmm-tools.exe",
-        )
+    base = f"https://github.com/{DM_DUMP_REPO}/releases/download/{DM_DUMP_RELEASE}"
+    if sysname == "windows" and machine in {"x86_64", "amd64"}:
+        return f"{base}/dm-dump-x86_64-pc-windows-msvc.exe", "dm-dump.exe"
     if sysname == "linux" and machine in {"x86_64", "amd64"}:
-        return (
-            f"https://github.com/{DMM_TOOLS_REPO}/releases/download/"
-            f"{DMM_TOOLS_RELEASE}/dmm-tools",
-            "dmm-tools",
-        )
+        return f"{base}/dm-dump-x86_64-unknown-linux-gnu", "dm-dump"
     if sysname == "darwin":
-        return (
-            f"https://github.com/{DMM_TOOLS_REPO}/releases/download/"
-            f"{DMM_TOOLS_RELEASE}/dmm-tools",
-            "dmm-tools",
-        )
+        if machine in {"arm64", "aarch64"}:
+            return f"{base}/dm-dump-aarch64-apple-darwin", "dm-dump"
+        if machine in {"x86_64", "amd64"}:
+            return f"{base}/dm-dump-x86_64-apple-darwin", "dm-dump"
     raise RuntimeError(
-        f"no prebuilt dmm-tools for {sysname}/{machine}. Build SpacemanDMM "
-        f"from source (https://github.com/{DMM_TOOLS_REPO}) and set "
-        "SS13_DMM_TOOLS_PATH to the resulting binary."
+        f"no prebuilt dm-dump for {sysname}/{machine}. Build it from source: "
+        f"`cargo build --release --manifest-path dm-dump/Cargo.toml` in a "
+        f"clone of https://github.com/{DM_DUMP_REPO}, then set SS13_DM_DUMP_PATH "
+        "to the resulting binary."
     )
 
 
@@ -83,20 +80,56 @@ def _download(url: str, dest: Path) -> None:
             shutil.copyfileobj(resp, f)
 
 
-def _ensure_dmm_tools() -> Path:
-    override = os.environ.get("SS13_DMM_TOOLS_PATH")
+def _ensure_dm_dump() -> Path:
+    override = os.environ.get("SS13_DM_DUMP_PATH")
     if override:
         return Path(override)
     bin_dir = snapshot_dir() / "bin"
     bin_dir.mkdir(parents=True, exist_ok=True)
-    url, name = _dmm_tools_url()
+    url, name = _dm_dump_url()
     dest = bin_dir / name
     if dest.exists():
         return dest
-    _step(f"downloading dmm-tools from {url}")
+    _step(f"downloading dm-dump from {url}")
     _download(url, dest)
     dest.chmod(dest.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
     return dest
+
+
+def _probe_dm_dump(dm_dump: Path) -> None:
+    """Verify the dm-dump binary is present and runnable.
+
+    Runs `dm-dump --version` and confirms the output starts with `dm-dump`.
+    Probing here lets setup fail fast with an actionable error rather than
+    silently leaving a 0-byte dmm-raw.json mid-pipeline (issue #16).
+    """
+    _step(f"probing dm-dump at {dm_dump}")
+    try:
+        result = subprocess.run(
+            [str(dm_dump), "--version"],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    except FileNotFoundError as e:
+        raise RuntimeError(
+            f"dm-dump binary not found at {dm_dump}. Build it with `cargo build "
+            "--release --manifest-path dm-dump/Cargo.toml` and set "
+            "SS13_DM_DUMP_PATH to the resulting binary."
+        ) from e
+    except (OSError, subprocess.TimeoutExpired) as e:
+        raise RuntimeError(f"failed to invoke dm-dump at {dm_dump}: {e}") from e
+    stdout = (result.stdout or "").strip()
+    if result.returncode != 0 or not stdout.startswith("dm-dump"):
+        stderr = (result.stderr or "").strip() or "(no stderr)"
+        raise RuntimeError(
+            f"dm-dump at {dm_dump} failed its version probe (exit "
+            f"{result.returncode}, stdout={stdout!r}, stderr={stderr}). "
+            f"Build the dm-dump binary from this repo (cargo build --release "
+            "--manifest-path dm-dump/Cargo.toml) and point SS13_DM_DUMP_PATH "
+            "at it. Tracking: https://github.com/vg14-developers/ss13-mcp/issues/16"
+        )
+    _step(f"dm-dump probe ok ({stdout})")
 
 
 def _looks_like_ss13(path: Path) -> bool:
@@ -162,15 +195,23 @@ def _clone(repo_url: str, sha: str | None, dest: Path) -> str:
     return actual
 
 
-def _build_dm_index(ss13: Path, dmm_tools: Path, out_dir: Path) -> None:
+def _build_dm_index(ss13: Path, dm_dump: Path, out_dir: Path) -> None:
     _step("building DM type index (slowest local step, ~3-10 min)")
     env = os.environ.copy()
-    env["SS13_DMM_TOOLS"] = str(dmm_tools)
-    subprocess.run(
-        [sys.executable, "-m", "ss13_mcp.pipeline.build_dm_index", str(ss13), str(out_dir)],
-        check=True,
-        env=env,
-    )
+    env["SS13_DM_DUMP"] = str(dm_dump)
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "ss13_mcp.pipeline.build_dm_index", str(ss13), str(out_dir)],
+            check=True,
+            env=env,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except subprocess.CalledProcessError as e:
+        # Surface the pipeline subprocess's stderr (RuntimeError + traceback)
+        # to the MCP caller instead of letting it vanish into the server log.
+        stderr = (e.stderr or "").strip() or "(no stderr)"
+        raise RuntimeError(f"DM index build failed (exit {e.returncode}): {stderr}") from e
 
 
 def setup(
@@ -203,6 +244,12 @@ def setup(
     """
     ss13 = Path(ss13_path).expanduser().resolve()
 
+    # Ensure and probe dm-dump before any heavy work (clone / index build) so a
+    # missing or broken binary surfaces immediately rather than after a
+    # multi-gigabyte clone. See issue #16.
+    dm_dump = _ensure_dm_dump()
+    _probe_dm_dump(dm_dump)
+
     fork_label = "unknown"
     if ss13.exists() and any(ss13.iterdir()):
         if not _looks_like_ss13(ss13):
@@ -229,13 +276,11 @@ def setup(
         clone_sha = sha or os.environ.get("SS13_SHA")
         actual_sha = _clone(url, clone_sha, ss13)
 
-    dmm = _ensure_dmm_tools()
-
     index_dir = snapshot_dir() / "index"
     if force or not (index_dir.exists() and (index_dir / "types.json").exists()):
         if index_dir.exists():
             shutil.rmtree(index_dir)
-        _build_dm_index(ss13, dmm, index_dir)
+        _build_dm_index(ss13, dm_dump, index_dir)
     else:
         _step(f"DM index already present at {index_dir}; skipping (pass force=true to rebuild)")
 
@@ -244,7 +289,7 @@ def setup(
         "ss13_sha": actual_sha,
         "fork": fork_label,
         "bumped_at": datetime.now(timezone.utc).isoformat(),
-        "dmm_tools_path": str(dmm),
+        "dm_dump_path": str(dm_dump),
     }
     write_config(cfg)
     _step(f"wrote config to {config_path()}")
@@ -259,7 +304,7 @@ def setup(
         "ss13_path": str(ss13),
         "ss13_sha": actual_sha,
         "fork": fork_label,
-        "dmm_tools_path": str(dmm),
+        "dm_dump_path": str(dm_dump),
         "snapshot_dir": str(snapshot_dir()),
         "dm_types_count": types_count,
     }
