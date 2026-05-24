@@ -11,3 +11,4 @@ htmlcov/
 /snapshot_data/
 /cache/
 tests/fixtures/mini-ss13/index/
+/dm-dump/target/

@@ -1,6 +1,10 @@
 import json
+import subprocess
 
-from ss13_mcp.pipeline.build_dm_index import massage_dmm_output
+import pytest
+
+from ss13_mcp.pipeline import build_dm_index
+from ss13_mcp.pipeline.build_dm_index import massage_dmm_output, run_dm_dump
 
 
 def test_massage_produces_expected_indices(tmp_path):
@@ -57,3 +61,62 @@ def test_massage_produces_expected_indices(tmp_path):
     paths = (out_dir / "paths.idx").read_text().splitlines()
     assert "/obj/test/widget" in paths
     assert "/obj/test/widget/super" in paths
+
+
+# --- run_dm_dump error handling (issue #16) ---
+
+
+def test_run_dm_dump_surfaces_stderr_on_failure(monkeypatch, tmp_path):
+    """A failing dm-dump invocation must raise with the real stderr, not silently leave a 0-byte file."""
+    out = tmp_path / "dmm-raw.json"
+    expected_stderr = "dm-dump: preprocessor failed"
+
+    def fake_run(cmd, **kwargs):
+        # Mimic subprocess.run with check=True hitting a non-zero exit.
+        raise subprocess.CalledProcessError(
+            returncode=2, cmd=cmd, output=None, stderr=expected_stderr
+        )
+
+    monkeypatch.setattr(build_dm_index.subprocess, "run", fake_run)
+    with pytest.raises(RuntimeError, match=expected_stderr):
+        run_dm_dump(tmp_path, out)
+    # The 0-byte file we opened for writing must be cleaned up.
+    assert not out.exists(), "failed run must clean up the partial output file"
+
+
+def test_run_dm_dump_handles_missing_binary(monkeypatch, tmp_path):
+    out = tmp_path / "dmm-raw.json"
+
+    def fake_run(cmd, **kwargs):
+        raise FileNotFoundError(2, "No such file", cmd[0])
+
+    monkeypatch.setattr(build_dm_index.subprocess, "run", fake_run)
+    with pytest.raises(RuntimeError, match="dm-dump binary not found"):
+        run_dm_dump(tmp_path, out)
+    assert not out.exists()
+
+
+def test_run_dm_dump_falls_back_when_stderr_empty(monkeypatch, tmp_path):
+    """Failure with no stderr text still produces an actionable RuntimeError."""
+    out = tmp_path / "dmm-raw.json"
+
+    def fake_run(cmd, **kwargs):
+        raise subprocess.CalledProcessError(returncode=2, cmd=cmd, output=None, stderr="")
+
+    monkeypatch.setattr(build_dm_index.subprocess, "run", fake_run)
+    with pytest.raises(RuntimeError, match=r"\(no stderr\)"):
+        run_dm_dump(tmp_path, out)
+    assert not out.exists()
+
+
+def test_run_dm_dump_writes_output_on_success(monkeypatch, tmp_path):
+    out = tmp_path / "nested" / "dmm-raw.json"
+
+    def fake_run(cmd, stdout=None, **kwargs):
+        stdout.write('{"path": "/datum"}\n')
+        return subprocess.CompletedProcess(cmd, 0, stdout=None, stderr="")
+
+    monkeypatch.setattr(build_dm_index.subprocess, "run", fake_run)
+    run_dm_dump(tmp_path, out)
+    assert out.exists()
+    assert '{"path": "/datum"}' in out.read_text()

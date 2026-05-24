@@ -1,0 +1,22 @@
+[package]
+name = "dm-dump"
+version = "0.1.0"
+edition = "2021"
+description = "Dumps a SpacemanDMM-parsed type tree as NDJSON for the ss13-mcp DM index pipeline."
+license = "MIT"
+
+[[bin]]
+name = "dm-dump"
+path = "src/main.rs"
+
+[dependencies]
+# Pinned to suite-1.10 (commit c1101fb) — the same revision the project's
+# Dockerfile builds dmm-tools from. Bumping requires re-testing the type-tree
+# walk against the new dreammaker API.
+dreammaker = { git = "https://github.com/SpaceManiac/SpacemanDMM", rev = "c1101fb3ad7971f3d19d6b81911fbd94d98fbad4" }
+serde_json = "1.0"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
