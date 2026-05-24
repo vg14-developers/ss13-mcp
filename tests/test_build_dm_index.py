@@ -1,6 +1,6 @@
 import json
 
-from pipeline.build_dm_index import massage_dmm_output
+from vgstation13_mcp.pipeline.build_dm_index import massage_dmm_output
 
 
 def test_massage_produces_expected_indices(tmp_path):

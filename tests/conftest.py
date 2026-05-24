@@ -10,7 +10,7 @@ FIXTURE_SHA = (FIXTURE_VG13 / "SHA").read_text().strip()
 
 def _bake_index(out_dir: Path) -> None:
     """Generate index/ from a synthetic dmm-tools dump so DM-query tests have data."""
-    from pipeline.build_dm_index import massage_dmm_output
+    from vgstation13_mcp.pipeline.build_dm_index import massage_dmm_output
 
     records = [
         {

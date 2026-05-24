@@ -1,5 +1,4 @@
 import json
-import sys
 from pathlib import Path
 
 import pytest
@@ -65,7 +64,3 @@ def test_unconfigured_tools_raise_helpful_error(monkeypatch, tmp_path):
 
     with pytest.raises(RuntimeError, match="setup"):
         list_dir(".")
-
-
-# The pipeline module needs to be importable for the build step in real setup.
-sys.modules.setdefault("pipeline", __import__("pipeline"))
