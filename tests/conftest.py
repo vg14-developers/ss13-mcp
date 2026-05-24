@@ -1,15 +1,15 @@
+import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
-FIXTURE_DIR = Path(__file__).parent / "fixtures" / "mini-vg13"
-INDEX_DIR = FIXTURE_DIR / "index"
+FIXTURE_VG13 = Path(__file__).parent / "fixtures" / "mini-vg13"
+FIXTURE_SHA = (FIXTURE_VG13 / "SHA").read_text().strip()
 
 
-def _bake_fixture_index() -> None:
-    """Generate index/ for the fixture so DM-query tests have data."""
-    if INDEX_DIR.exists():
-        return
+def _bake_index(out_dir: Path) -> None:
+    """Generate index/ from a synthetic dmm-tools dump so DM-query tests have data."""
     from pipeline.build_dm_index import massage_dmm_output
 
     records = [
@@ -48,8 +48,8 @@ def _bake_fixture_index() -> None:
         {
             "path": "/obj/test/widget",
             "parent": "/obj/test",
-            "vars": [{"name": "charge", "value": "0"}],
-            "procs": [{"name": "zap"}, {"name": "attack_self"}],
+            "vars": [],
+            "procs": [],
             "file": "code/modules/test/widget.dm",
             "line": 1,
         },
@@ -61,27 +61,34 @@ def _bake_fixture_index() -> None:
             "file": "code/modules/test/super_widget.dm",
             "line": 1,
         },
+        {
+            "path": "/obj/test/widget",
+            "parent": "/obj/test",
+            "vars": [{"name": "charge", "value": "0"}],
+            "procs": [{"name": "zap"}, {"name": "attack_self"}],
+            "file": "code/modules/test/widget.dm",
+            "line": 1,
+        },
     ]
-    massage_dmm_output(records, INDEX_DIR)
-
-
-_bake_fixture_index()
-
-
-def _bake_fixture_wiki() -> None:
-    wiki_dir = FIXTURE_DIR / "wiki"
-    if wiki_dir.exists():
-        return
-    from pipeline.crawl_wiki import html_to_markdown_bundle
-
-    html_to_markdown_bundle(FIXTURE_DIR / "wiki_html", wiki_dir)
-
-
-_bake_fixture_wiki()
+    massage_dmm_output(records, out_dir)
 
 
 @pytest.fixture
 def fixture_snapshot(monkeypatch, tmp_path):
-    monkeypatch.setenv("VG_SNAPSHOT_DIR", str(FIXTURE_DIR))
+    """Stand up a fresh per-test snapshot dir + config pointing at the fixture vg13."""
+    snap = tmp_path / "snapshot"
+    snap.mkdir()
+    _bake_index(snap / "index")
+    (snap / "config.json").write_text(
+        json.dumps(
+            {
+                "vg13_path": str(FIXTURE_VG13),
+                "vg13_sha": FIXTURE_SHA,
+                "bumped_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+    )
+    monkeypatch.setenv("VG_SNAPSHOT_DIR", str(snap))
+    monkeypatch.setenv("VG13_PATH", str(FIXTURE_VG13))
     monkeypatch.setenv("VG_CACHE_DIR", str(tmp_path / "cache"))
-    return FIXTURE_DIR
+    return snap

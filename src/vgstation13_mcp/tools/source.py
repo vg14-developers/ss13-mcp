@@ -3,20 +3,19 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from vgstation13_mcp.snapshot import snapshot_dir
+from vgstation13_mcp.snapshot import vg13_dir
 
 
 def _resolve(path: str) -> Path:
-    """Resolve `path` under the snapshot root; reject escapes."""
-    root = snapshot_dir().resolve()
+    """Resolve `path` under the vg13 checkout; reject escapes."""
+    root = vg13_dir().resolve()
     target = (root / path).resolve()
     if root not in target.parents and target != root:
-        raise ValueError(f"path is outside snapshot: {path}")
+        raise ValueError(f"path is outside vg13 checkout: {path}")
     return target
 
 
 def list_dir(path: str) -> list[dict]:
-    """List entries in a snapshot directory."""
     target = _resolve(path)
     if not target.exists():
         raise FileNotFoundError(path)
@@ -35,7 +34,7 @@ def list_dir(path: str) -> list[dict]:
 
 
 def read_file(path: str, range: list[int] | None = None) -> str:
-    """Read a snapshot file. `range` is an optional [start, end] 1-indexed line range."""
+    """Read a vg13 file. `range` is an optional [start, end] 1-indexed line range."""
     target = _resolve(path)
     if not target.exists():
         raise FileNotFoundError(path)
@@ -50,7 +49,7 @@ def read_file(path: str, range: list[int] | None = None) -> str:
 
 
 def search_files(pattern: str, glob: str | None = None, limit: int = 200) -> list[dict]:
-    """Ripgrep search across snapshot source. Returns up to `limit` hits."""
+    """Ripgrep search across the vg13 checkout. Returns up to `limit` hits."""
     rg = shutil.which("rg")
     if not rg:
         raise RuntimeError("ripgrep (rg) not installed")
@@ -58,7 +57,7 @@ def search_files(pattern: str, glob: str | None = None, limit: int = 200) -> lis
     if glob:
         args += ["--glob", glob]
     args.append(".")
-    root = snapshot_dir().resolve()
+    root = vg13_dir().resolve()
     proc = subprocess.run(args, capture_output=True, text=True, check=False, cwd=str(root))
     if proc.returncode not in (0, 1):  # 1 = no matches, still success
         raise RuntimeError(f"ripgrep failed: {proc.stderr.strip()}")
@@ -71,7 +70,6 @@ def search_files(pattern: str, glob: str | None = None, limit: int = 200) -> lis
             continue
         data = event["data"]
         raw_path = data["path"]["text"]
-        # rg emits paths relative to its cwd (e.g. "./code/..." or "code\\...")
         rel_path = Path(raw_path)
         if rel_path.is_absolute():
             try:

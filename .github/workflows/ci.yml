@@ -36,5 +36,3 @@ jobs:
 
       - name: unit tests
         run: uv run pytest tests/ -v --cov=src/vgstation13_mcp --cov-report=term-missing
-        env:
-          VG_SNAPSHOT_DIR: tests/fixtures/mini-vg13

@@ -1,4 +1,0 @@
-{
-  "vg13_sha": "8f05182163946c4133aa829e5e4ea96c1abc3d37",
-  "_comment": "Pinned vgstation-coders/vgstation13 Bleeding-Edge commit that every fresh install materializes. Users can override at install time via the VG13_SHA env var."
-}

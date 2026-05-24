@@ -11,7 +11,7 @@ def test_list_dir_returns_entries(fixture_snapshot):
 
 
 def test_list_dir_rejects_escape(fixture_snapshot):
-    with pytest.raises(ValueError, match="outside snapshot"):
+    with pytest.raises(ValueError, match="outside vg13 checkout"):
         list_dir("../../../etc")
 
 
