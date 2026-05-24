@@ -78,7 +78,7 @@ def read_file(path: str, range: list[int] | None = None) -> str:
 
 @mcp.tool()
 def search_files(pattern: str, glob: str | None = None, limit: int = 200) -> list[dict]:
-    """Ripgrep across the SS13 checkout. Optional glob narrows scope."""
+    """Regex search across the SS13 checkout. Optional glob narrows scope."""
     return _search_files(pattern, glob=glob, limit=limit)
 
 
