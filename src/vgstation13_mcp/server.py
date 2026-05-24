@@ -1,11 +1,9 @@
 import logging
-import os
 
 from mcp.server.fastmcp import FastMCP
-from mcp.types import Resource
+from mcp.server.fastmcp.resources import FunctionResource
 from pydantic import AnyUrl
 
-from vgstation13_mcp.ratelimit import TokenBucket
 from vgstation13_mcp.resources import read_resource as _read_resource
 from vgstation13_mcp.tools.assets import convert_dmi as _convert_dmi
 from vgstation13_mcp.tools.assets import list_dmi_states as _list_dmi_states
@@ -25,8 +23,6 @@ from vgstation13_mcp.tools.wiki import wiki_search as _wiki_search
 
 log = logging.getLogger("vgstation13_mcp")
 mcp = FastMCP("vgstation13")
-
-_convert_bucket = TokenBucket(capacity=30, refill_per_second=0.5)
 
 
 @mcp.tool()
@@ -97,9 +93,7 @@ def list_dmi_states(dmi_path: str) -> list[dict]:
 
 @mcp.tool()
 def convert_dmi(dmi_path: str, state: str | None = None) -> dict:
-    """Convert a DMI to a Robust SS14 RSI. Returns local path + URL. Rate-limited to 30/min."""
-    if not _convert_bucket.take("global"):
-        raise RuntimeError("convert_dmi rate limit exceeded: 30/min server-wide")
+    """Convert a DMI to a Robust SS14 RSI. Returns local path + URL."""
     return _convert_dmi(dmi_path, state=state)
 
 
@@ -115,48 +109,38 @@ def wiki_read(page: str) -> str:
     return _wiki_read(page)
 
 
-# Resource handlers live on the low-level Server. FastMCP 1.2.0 doesn't expose
-# `@mcp.list_resources()` / `@mcp.read_resource()` decorators directly, so we
-# register on `mcp._mcp_server` and overwrite FastMCP's default handlers.
-@mcp._mcp_server.list_resources()
-async def list_resources() -> list[Resource]:
-    """Advertise snapshotted wiki pages as vg13:// resources."""
-    out: list[Resource] = []
+@mcp.resource("vg13://source/{path}")
+def _resource_source(path: str) -> str:
+    return _read_resource(f"vg13://source/{path}")[0]
+
+
+def register_wiki_resources() -> int:
+    """Enumerate snapshotted wiki pages and register each as an MCP resource.
+
+    Called by main() after the snapshot is materialized. Returns the count for tests.
+    """
+    count = 0
     for entry in _wiki_index_loader():
-        out.append(
-            Resource(
-                uri=AnyUrl(f"vg13://wiki/{entry['page']}"),
+        page = entry["page"]
+        mcp.add_resource(
+            FunctionResource(
+                uri=AnyUrl(f"vg13://wiki/{page}"),
                 name=entry["title"],
-                mimeType="text/markdown",
+                mime_type="text/markdown",
+                fn=lambda p=page: _wiki_read(p),
             )
         )
-    return out
-
-
-@mcp._mcp_server.read_resource()
-async def read_resource(uri: AnyUrl) -> str:
-    """Resolve a vg13://source/... or vg13://wiki/... URI to its content."""
-    content, _mime = _read_resource(str(uri))
-    return content
+        count += 1
+    return count
 
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
-    transport = os.environ.get("VG_TRANSPORT", "stdio")
-    if transport == "stdio":
-        mcp.run()
-    elif transport == "http":
-        import uvicorn
+    from vgstation13_mcp.setup import ensure_snapshot
 
-        from vgstation13_mcp.app import build_app
-
-        uvicorn.run(
-            build_app(),
-            host="0.0.0.0",
-            port=int(os.environ.get("PORT", "8080")),
-        )
-    else:
-        raise ValueError(f"unknown VG_TRANSPORT: {transport}")
+    ensure_snapshot()
+    register_wiki_resources()
+    mcp.run()
 
 
 if __name__ == "__main__":
