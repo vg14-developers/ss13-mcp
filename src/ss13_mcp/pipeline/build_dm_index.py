@@ -28,6 +28,7 @@ def run_dm_dump(ss13_clone: Path, out_json: Path) -> None:
             subprocess.run(
                 [dm_dump, str(ss13_clone)],
                 check=True,
+                stdin=subprocess.DEVNULL,
                 stdout=f,
                 stderr=subprocess.PIPE,
                 text=True,
