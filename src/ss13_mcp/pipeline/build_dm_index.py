@@ -88,10 +88,10 @@ def massage_dmm_output(records: list[dict], out_dir: Path) -> None:
         if parent in types:
             types[parent]["children"] = sorted(kids)
 
-    (out_dir / "types.json").write_text(json.dumps(types, indent=2))
-    (out_dir / "procs.json").write_text(json.dumps(dict(procs), indent=2))
-    (out_dir / "vars.json").write_text(json.dumps(dict(vars_), indent=2))
-    (out_dir / "paths.idx").write_text("\n".join(sorted(types.keys())))
+    (out_dir / "types.json").write_text(json.dumps(types, indent=2), encoding="utf-8")
+    (out_dir / "procs.json").write_text(json.dumps(dict(procs), indent=2), encoding="utf-8")
+    (out_dir / "vars.json").write_text(json.dumps(dict(vars_), indent=2), encoding="utf-8")
+    (out_dir / "paths.idx").write_text("\n".join(sorted(types.keys())), encoding="utf-8")
 
 
 def main() -> None:
@@ -100,7 +100,7 @@ def main() -> None:
     raw = out / "dmm-raw.json"
     raw.parent.mkdir(parents=True, exist_ok=True)
     run_dm_dump(ss13, raw)
-    records = [json.loads(line) for line in raw.read_text().splitlines() if line]
+    records = [json.loads(line) for line in raw.read_text(encoding="utf-8").splitlines() if line]
     massage_dmm_output(records, out)
     raw.unlink()
 
