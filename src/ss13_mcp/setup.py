@@ -102,6 +102,7 @@ def _probe_dm_dump(dm_dump: Path) -> None:
     try:
         result = subprocess.run(
             [str(dm_dump), "--version"],
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
             timeout=15,
@@ -140,6 +141,7 @@ def _git_head_sha(path: Path) -> str | None:
             ["git", "rev-parse", "HEAD"],
             cwd=path,
             check=True,
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
         )
@@ -173,17 +175,41 @@ def _clone(repo_url: str, sha: str | None, dest: Path) -> str:
     label = f"{repo_url} @ {sha[:8]}" if sha else f"{repo_url} (default branch HEAD)"
     _step(f"cloning {label} -> {dest}")
     dest.mkdir(parents=True, exist_ok=True)
-    subprocess.run(["git", "init", "-q"], cwd=dest, check=True)
-    subprocess.run(["git", "remote", "add", "origin", repo_url], cwd=dest, check=True)
+    # stdin=DEVNULL on every git call: Git for Windows hangs at startup when it
+    # inherits a pipe stdin that another thread (here, the MCP stdio reader) is
+    # already blocked reading from.
+    subprocess.run(["git", "init", "-q"], cwd=dest, check=True, stdin=subprocess.DEVNULL)
+    subprocess.run(
+        ["git", "remote", "add", "origin", repo_url], cwd=dest, check=True, stdin=subprocess.DEVNULL
+    )
     if sha:
-        subprocess.run(["git", "fetch", "--depth", "1", "origin", sha], cwd=dest, check=True)
-        subprocess.run(["git", "checkout", "FETCH_HEAD"], cwd=dest, check=True)
+        subprocess.run(
+            ["git", "fetch", "--depth", "1", "origin", sha],
+            cwd=dest,
+            check=True,
+            stdin=subprocess.DEVNULL,
+        )
+        subprocess.run(
+            ["git", "checkout", "FETCH_HEAD"], cwd=dest, check=True, stdin=subprocess.DEVNULL
+        )
     else:
         # Fetch and check out whatever the remote's HEAD points at.
-        subprocess.run(["git", "fetch", "--depth", "1", "origin", "HEAD"], cwd=dest, check=True)
-        subprocess.run(["git", "checkout", "FETCH_HEAD"], cwd=dest, check=True)
+        subprocess.run(
+            ["git", "fetch", "--depth", "1", "origin", "HEAD"],
+            cwd=dest,
+            check=True,
+            stdin=subprocess.DEVNULL,
+        )
+        subprocess.run(
+            ["git", "checkout", "FETCH_HEAD"], cwd=dest, check=True, stdin=subprocess.DEVNULL
+        )
     actual = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=dest, check=True, capture_output=True, text=True
+        ["git", "rev-parse", "HEAD"],
+        cwd=dest,
+        check=True,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
     ).stdout.strip()
     if sha and actual != sha:
         raise RuntimeError(f"SHA mismatch: requested {sha}, got {actual}")
@@ -199,6 +225,7 @@ def _build_dm_index(ss13: Path, dm_dump: Path, out_dir: Path) -> None:
             [sys.executable, "-m", "ss13_mcp.pipeline.build_dm_index", str(ss13), str(out_dir)],
             check=True,
             env=env,
+            stdin=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
             text=True,
         )
