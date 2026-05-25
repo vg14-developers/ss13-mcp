@@ -89,8 +89,8 @@ works via the `repo_url=` parameter.
 
 - **git** on `$PATH` (only needed if you ask setup to clone for you).
 - A platform with a prebuilt `dm-dump` binary (auto-downloaded from this
-  repo's GitHub Releases): x86_64 Linux, x86_64 Windows, x86_64 macOS, arm64
-  macOS. For other platforms, build it yourself with
+  repo's GitHub Releases): x86_64 Linux, x86_64 Windows. For other platforms
+  (including macOS), build it yourself with
   `cargo build --release --manifest-path dm-dump/Cargo.toml` and point
   `SS13_DM_DUMP_PATH` at the resulting binary. Setup probes the binary up
   front and fails fast with guidance if it's missing or broken (issue #16).

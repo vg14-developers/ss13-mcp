@@ -30,7 +30,7 @@ log = logging.getLogger(__name__)
 # We ship our own type-tree dumper (built from the dreammaker parser crate)
 # because upstream SpacemanDMM doesn't expose a `dump-types` subcommand. See
 # dm-dump/ in this repo and issue #16.
-DM_DUMP_RELEASE = "dm-dump-v0.1.0"
+DM_DUMP_RELEASE = "dm-dump-v0.2.0"
 DM_DUMP_REPO = "vg14-developers/ss13-mcp"
 
 # Short identifiers for well-known SS13 forks. Pass `fork="<key>"` to setup()
@@ -59,11 +59,6 @@ def _dm_dump_url() -> tuple[str, str]:
         return f"{base}/dm-dump-x86_64-pc-windows-msvc.exe", "dm-dump.exe"
     if sysname == "linux" and machine in {"x86_64", "amd64"}:
         return f"{base}/dm-dump-x86_64-unknown-linux-gnu", "dm-dump"
-    if sysname == "darwin":
-        if machine in {"arm64", "aarch64"}:
-            return f"{base}/dm-dump-aarch64-apple-darwin", "dm-dump"
-        if machine in {"x86_64", "amd64"}:
-            return f"{base}/dm-dump-x86_64-apple-darwin", "dm-dump"
     raise RuntimeError(
         f"no prebuilt dm-dump for {sysname}/{machine}. Build it from source: "
         f"`cargo build --release --manifest-path dm-dump/Cargo.toml` in a "

@@ -27,12 +27,6 @@ jobs:
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             artifact: dm-dump.exe
-          - target: x86_64-apple-darwin
-            os: macos-13
-            artifact: dm-dump
-          - target: aarch64-apple-darwin
-            os: macos-14
-            artifact: dm-dump
     steps:
       - uses: actions/checkout@v4
 
